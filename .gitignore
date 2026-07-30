@@ -8,3 +8,4 @@ __pycache__/
 # Keep user-uploaded data out of version control.
 data/*
 !data/.gitkeep
+!data/example_daily_returns.csv
