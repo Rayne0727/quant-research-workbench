@@ -1,5 +1,7 @@
 """多实验比较模式的 Streamlit 页面组织。"""
 
+import logging
+
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -13,16 +15,41 @@ from src.comparison import (
     generate_comparison_metrics_csv,
     load_and_compare_standardized_files,
 )
+from src.config import (
+    COMPARISON_FILE_MAX_MB,
+    MAX_COMPARISON_FILES,
+    MAX_ROWS_PER_FILE,
+)
+from src.limits import UploadLimitError
 from src.reporting import (
     ComparisonReportContext,
     generate_comparison_markdown_report,
     generate_comparison_summary,
 )
 from src.sample_data import generate_comparison_sample_data
+from src.templates import generate_comparison_template_csv
+
+
+LOGGER = logging.getLogger(__name__)
+UNEXPECTED_ERROR_MESSAGE = (
+    "应用处理过程中出现未预期错误。请检查文件格式；"
+    "若问题持续存在，请重新启动应用并保留错误发生步骤。"
+)
 
 
 def render_comparison_page() -> None:
-    """渲染只接受标准化 CSV 的多实验比较页面。"""
+    """渲染比较页面，并统一处理预期及未预期异常。"""
+    try:
+        _render_comparison_page()
+    except (ComparisonValidationError, UploadLimitError) as exc:
+        st.error(str(exc))
+    except Exception as exc:
+        LOGGER.exception("多实验比较页面发生未预期错误：%s", type(exc).__name__)
+        st.error(UNEXPECTED_ERROR_MESSAGE)
+
+
+def _render_comparison_page() -> None:
+    """组织只接受标准化 CSV 的多实验比较内容。"""
     st.info(
         "多实验比较仅使用标准化文件中的策略字段；"
         "基准字段暂不参与跨实验比较。"
@@ -35,9 +62,24 @@ def render_comparison_page() -> None:
         key="comparison_source_mode",
     )
     st.caption("当前模式：多实验比较")
+    st.caption(
+        f"上传限制：2 至 {MAX_COMPARISON_FILES} 份文件，每份最大 "
+        f"{COMPARISON_FILE_MAX_MB} MB、最多 {MAX_ROWS_PER_FILE} 行。"
+    )
     st.markdown(
         "必需字段：`date`、`strategy_return`、`strategy_nav`、`drawdown`；  "
         "可选字段：`benchmark_return`、`benchmark_nav`。系统不会自动映射其他字段。"
+    )
+    st.caption(
+        "模板第一行收益为空且净值为1，仅用于标准化字段格式演示，"
+        "不代表真实策略结果。"
+    )
+    st.download_button(
+        "下载标准化比较CSV模板",
+        data=generate_comparison_template_csv(),
+        file_name="standardized_comparison_template.csv",
+        mime="text/csv; charset=utf-8",
+        key="comparison_template_download",
     )
 
     if source_mode == "使用比较示例数据":
@@ -46,7 +88,7 @@ def render_comparison_page() -> None:
         result = compare_standardized_datasets(sample_datasets)
     else:
         uploaded_files = st.file_uploader(
-            "选择 2 至 6 份标准化分析 CSV",
+            f"选择 2 至 {MAX_COMPARISON_FILES} 份标准化分析 CSV",
             type=("csv",),
             accept_multiple_files=True,
             key="comparison_uploaded_files",
@@ -61,22 +103,17 @@ def render_comparison_page() -> None:
         if len(uploaded_files) < 2:
             st.info("多实验比较至少需要上传 2 份标准化 CSV。")
             return
-        if len(uploaded_files) > 6:
-            st.error("当前版本最多支持 6 份标准化 CSV。")
-            return
-        try:
-            result = load_and_compare_standardized_files(
-                [
-                    (uploaded_file.name, uploaded_file)
-                    for uploaded_file in uploaded_files
-                ]
+        if len(uploaded_files) > MAX_COMPARISON_FILES:
+            st.error(
+                f"当前版本最多支持 {MAX_COMPARISON_FILES} 份标准化 CSV。"
             )
-        except ComparisonValidationError as exc:
-            st.error(str(exc))
             return
-        except Exception:
-            st.error("处理比较文件时发生未预期错误，请检查 CSV 格式后重试。")
-            return
+        result = load_and_compare_standardized_files(
+            [
+                (uploaded_file.name, uploaded_file)
+                for uploaded_file in uploaded_files
+            ]
+        )
 
     experiment_names = [
         experiment.name for experiment in result.experiments

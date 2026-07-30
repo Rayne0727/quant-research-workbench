@@ -10,6 +10,12 @@ from typing import IO
 
 import pandas as pd
 
+from src.config import (
+    COMPARISON_FILE_MAX_MB,
+    MAX_COMPARISON_FILES,
+    MAX_ROWS_PER_FILE,
+)
+from src.limits import validate_file_size, validate_row_count
 from src.performance import (
     add_nav_performance_series,
     calculate_nav_performance_metrics,
@@ -17,7 +23,7 @@ from src.performance import (
 
 
 MIN_EXPERIMENTS = 2
-MAX_EXPERIMENTS = 6
+MAX_EXPERIMENTS = MAX_COMPARISON_FILES
 COMPARISON_TOLERANCE = 1e-8
 REQUIRED_COLUMNS = ("date", "strategy_return", "strategy_nav", "drawdown")
 OPTIONAL_COLUMNS = ("benchmark_return", "benchmark_nav")
@@ -70,6 +76,9 @@ def load_and_compare_standardized_files(
 ) -> ComparisonResult:
     """读取多份命名 CSV，并在全部合法后执行比较。"""
     _validate_file_count(len(files))
+    for filename, source in files:
+        validate_file_size(source, filename, COMPARISON_FILE_MAX_MB)
+
     datasets: list[tuple[str, pd.DataFrame]] = []
     for filename, source in files:
         try:
@@ -92,6 +101,7 @@ def load_and_compare_standardized_files(
             raise ComparisonValidationError(
                 f"{filename}：文件读取失败，请确认文件有效且未损坏。"
             ) from exc
+        validate_row_count(raw_data, filename, MAX_ROWS_PER_FILE)
         datasets.append((filename, raw_data))
     return compare_standardized_datasets(datasets)
 
@@ -205,6 +215,7 @@ def validate_standardized_data(
 ) -> StandardizedExperiment:
     """严格验证单份标准化数据，不修改传入 DataFrame。"""
     error_prefix = f"{filename}："
+    validate_row_count(raw_data, filename, MAX_ROWS_PER_FILE)
     if raw_data.empty:
         raise ComparisonValidationError(f"{error_prefix}CSV 文件没有数据记录。")
 
@@ -354,4 +365,6 @@ def _validate_file_count(file_count: int) -> None:
     if file_count < MIN_EXPERIMENTS:
         raise ComparisonValidationError("多实验比较至少需要上传 2 份标准化 CSV。")
     if file_count > MAX_EXPERIMENTS:
-        raise ComparisonValidationError("当前版本最多支持 6 份标准化 CSV。")
+        raise ComparisonValidationError(
+            f"当前版本最多支持 {MAX_EXPERIMENTS} 份标准化 CSV。"
+        )

@@ -1,6 +1,33 @@
 # Quant Research Workbench
 
-Quant Research Workbench（量化研究实验台）是一个用于分析量化研究实验结果的本地 Web 应用。本项目面向零基础学习者，当前提供单实验分析和基于标准化数据的多实验比较两种模式。
+Quant Research Workbench（量化研究实验台）是一个用于分析量化研究实验结果的本地 Web 应用。
+
+当前版本：**v0.1.0-rc1 Release Candidate**。`rc1` 表示第一个发布候选版；当前业务功能已经冻结，本阶段只完善本地质量门禁和使用体验，正式发布时再将版本调整为 `v0.1.0`。
+
+当前支持两条完整工作流：
+
+1. 单实验分析：读取标准日频收益或每周调仓净值 CSV，验证、计算、绘图并导出标准化结果；
+2. 多实验比较：读取 2 至 6 份标准化分析 CSV，按真实共同交易日期重新计算并比较。
+
+## 快速启动
+
+在项目根目录打开 PowerShell：
+
+```powershell
+.\scripts\run_app.bat
+```
+
+浏览器访问 <http://localhost:8501>。停止网站时回到终端按 `Ctrl+C`。
+
+## 使用文档
+
+- [用户使用指南](docs/USER_GUIDE.md)
+- [数据协议](docs/DATA_PROTOCOLS.md)
+- [发布检查清单](docs/RELEASE_CHECKLIST.md)
+
+## 数据隐私边界
+
+上传文件仅在当前应用进程中处理，应用不会主动把上传数据或下载结果写入 `data/`。本地 `data/raw/` 中的真实验收数据被 Git 忽略。项目不提供实时行情、自动交易或投资建议。
 
 ## 当前功能
 
@@ -16,6 +43,8 @@ Quant Research Workbench（量化研究实验台）是一个用于分析量化�
 - 下载比较指标、共同日期对齐净值和确定性比较报告；
 - 在当前会话中记录可选的实验名称、策略名称和研究备注；
 - 预览清洗后的前 20 行数据。
+
+资源限制：单实验文件和多实验中的每份文件最大 `20 MB`，每份 CSV 最多 `200000` 行，多实验最多 `6` 份文件。超限内容不会被截断、抽样或部分处理。
 
 ## 支持的数据格式
 
@@ -122,12 +151,16 @@ Quant_Research_Workbench/
 ├── .gitignore
 ├── src/
 │   ├── __init__.py
+│   ├── config.py
+│   ├── limits.py
+│   ├── templates.py
 │   ├── sample_data.py
 │   ├── data_loader.py
 │   ├── adapters.py
 │   ├── performance.py
 │   ├── reporting.py
 │   ├── comparison.py
+│   ├── ui_single.py
 │   └── ui_comparison.py
 ├── data/
 │   ├── .gitkeep
@@ -135,7 +168,12 @@ Quant_Research_Workbench/
 │   └── raw/
 │       └── .gitkeep
 ├── scripts/
-│   └── run_app.bat
+│   ├── run_app.bat
+│   └── check_release.bat
+├── docs/
+│   ├── USER_GUIDE.md
+│   ├── DATA_PROTOCOLS.md
+│   └── RELEASE_CHECKLIST.md
 └── tests/
     ├── __init__.py
     ├── test_sample_data.py
@@ -143,7 +181,9 @@ Quant_Research_Workbench/
     ├── test_adapters.py
     ├── test_performance.py
     ├── test_reporting.py
-    └── test_comparison.py
+    ├── test_comparison.py
+    ├── test_release_support.py
+    └── test_app_smoke.py
 ```
 
 `data/raw/` 用于保存在本机验收的真实原始数据。该目录中的数据文件被 Git 忽略，只提交用于保留目录结构的 `.gitkeep`。应用不会修改或永久保存用户上传的原始文件。
@@ -199,6 +239,16 @@ python -m pip install -r requirements.txt
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
 ```
+
+## 本地发布检查
+
+在 Git 工作区干净时运行：
+
+```powershell
+.\scripts\check_release.bat
+```
+
+脚本依次显示版本、运行全部 pytest、编译 Python 文件并检查 Git 状态。任一步失败都会返回非零状态，不会启动网站或自动提交 Git。
 
 ## 当前版本暂不支持
 

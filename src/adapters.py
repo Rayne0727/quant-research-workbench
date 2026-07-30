@@ -7,6 +7,9 @@ from typing import IO
 
 import pandas as pd
 
+from src.config import MAX_ROWS_PER_FILE, SINGLE_FILE_MAX_MB
+from src.limits import get_source_filename, validate_file_size, validate_row_count
+
 
 REQUIRED_NAV_COLUMNS = ("date", "nav_strat")
 OPTIONAL_NAV_COLUMNS = ("daily_ret",)
@@ -43,6 +46,8 @@ def load_weekly_nav_csv(
     tolerance: float = DEFAULT_RETURN_TOLERANCE,
 ) -> WeeklyNavAdapterResult:
     """读取并严格验证每周调仓净值 CSV。"""
+    filename = get_source_filename(source)
+    validate_file_size(source, filename, SINGLE_FILE_MAX_MB)
     try:
         if hasattr(source, "seek"):
             source.seek(0)
@@ -64,6 +69,7 @@ def load_weekly_nav_csv(
             "CSV 文件读取失败，请确认文件有效且未损坏。"
         ) from exc
 
+    validate_row_count(raw_data, filename, MAX_ROWS_PER_FILE)
     return adapt_weekly_nav_data(raw_data, tolerance=tolerance)
 
 

@@ -6,6 +6,9 @@ from typing import IO
 
 import pandas as pd
 
+from src.config import MAX_ROWS_PER_FILE, SINGLE_FILE_MAX_MB
+from src.limits import get_source_filename, validate_file_size, validate_row_count
+
 
 REQUIRED_COLUMNS = ("date", "strategy_return")
 OPTIONAL_COLUMNS = ("benchmark_return",)
@@ -19,6 +22,8 @@ class DataValidationError(ValueError):
 
 def load_returns_csv(source: CsvSource) -> pd.DataFrame:
     """读取 CSV，并返回通过标准协议验证且按日期升序排列的数据。"""
+    filename = get_source_filename(source)
+    validate_file_size(source, filename, SINGLE_FILE_MAX_MB)
     try:
         if hasattr(source, "seek"):
             source.seek(0)
@@ -32,6 +37,7 @@ def load_returns_csv(source: CsvSource) -> pd.DataFrame:
     except (OSError, ValueError) as exc:
         raise DataValidationError("CSV 文件读取失败，请确认文件有效且未损坏。") from exc
 
+    validate_row_count(raw_data, filename, MAX_ROWS_PER_FILE)
     return validate_returns_data(raw_data)
 
 

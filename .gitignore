@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .streamlit/
+*.log
 
 # Keep user-uploaded data out of version control.
 data/*
