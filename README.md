@@ -2,7 +2,7 @@
 
 Quant Research Workbench（量化研究实验台）是一个用于分析量化研究实验结果的本地 Web 应用。
 
-当前版本：**v0.1.0-rc1 Release Candidate**。`rc1` 表示第一个发布候选版；当前业务功能已经冻结，本阶段只完善本地质量门禁和使用体验，正式发布时再将版本调整为 `v0.1.0`。
+当前版本：**v0.1.0-rc1 Release Candidate**。`rc1` 表示第一个发布候选版；当前业务功能已经冻结，现阶段只完善工程质量、持续集成和托管准备，正式发布时再将版本调整为 `v0.1.0`。
 
 当前支持两条完整工作流：
 
@@ -24,10 +24,14 @@ Quant Research Workbench（量化研究实验台）是一个用于分析量化�
 - [用户使用指南](docs/USER_GUIDE.md)
 - [数据协议](docs/DATA_PROTOCOLS.md)
 - [发布检查清单](docs/RELEASE_CHECKLIST.md)
+- [GitHub 与云部署准备](docs/DEPLOYMENT.md)
+- [安全与数据隐私说明](docs/SECURITY_AND_PRIVACY.md)
 
 ## 数据隐私边界
 
-上传文件仅在当前应用进程中处理，应用不会主动把上传数据或下载结果写入 `data/`。本地 `data/raw/` 中的真实验收数据被 Git 忽略。项目不提供实时行情、自动交易或投资建议。
+本地运行时，上传文件在当前本地应用进程中处理；部署到云端后，上传文件将在云端应用进程中处理。当前代码不会主动把上传数据或下载结果永久写入 `data/`，但这不构成绝对安全保证，云端平台日志和基础设施不由本项目代码完全控制。
+
+不要上传账号密码、API 密钥、交易凭证、个人敏感信息、商业机密或其他受限制内容。敏感研究数据应先脱敏；当前建议优先使用私人仓库和私人应用。
 
 ## 当前功能
 
@@ -148,7 +152,11 @@ Quant_Research_Workbench/
 ├── README.md
 ├── app.py
 ├── requirements.txt
+├── requirements-dev.txt
 ├── .gitignore
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 ├── src/
 │   ├── __init__.py
 │   ├── config.py
@@ -173,7 +181,9 @@ Quant_Research_Workbench/
 ├── docs/
 │   ├── USER_GUIDE.md
 │   ├── DATA_PROTOCOLS.md
-│   └── RELEASE_CHECKLIST.md
+│   ├── RELEASE_CHECKLIST.md
+│   ├── DEPLOYMENT.md
+│   └── SECURITY_AND_PRIVACY.md
 └── tests/
     ├── __init__.py
     ├── test_sample_data.py
@@ -197,12 +207,22 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
+`requirements.txt` 只包含应用运行所需的直接依赖。需要运行测试或参与开发时，改为安装开发依赖：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+```
+
+`requirements-dev.txt` 会先安装运行依赖，再安装 pytest。当前已验证环境为 Python `3.14.2`；CI 使用相同的 `3.14` 主次版本。
+
 如果 PowerShell 已允许执行本地脚本，也可以先激活虚拟环境：
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 ```
+
+如需运行测试，请将上面的安装文件替换为 `requirements-dev.txt`。
 
 ## 启动和停止应用
 
@@ -250,6 +270,12 @@ python -m pip install -r requirements.txt
 
 脚本依次显示版本、运行全部 pytest、编译 Python 文件并检查 Git 状态。任一步失败都会返回非零状态，不会启动网站或自动提交 Git。
 
+## GitHub 持续集成与部署状态
+
+仓库内的 `.github/workflows/ci.yml` 会在 push 到 `master`、面向 `master` 的 pull request，以及手动触发时运行 pytest 和 Python 编译检查。工作流只使用 GitHub 官方 checkout 与 setup-python action，不需要 Secrets，也不包含发布或部署步骤。
+
+当前只完成 GitHub CI 和云部署文件准备，应用尚未上线，也没有配置 Git remote。未来部署建议先使用私人仓库和私人应用，并在上传前对敏感研究数据脱敏。这里暂不添加 CI 徽章，因为远程仓库地址尚未确定。
+
 ## 当前版本暂不支持
 
 - 任意原始策略格式的批量适配和跨实验基准比较；
@@ -257,4 +283,4 @@ python -m pip install -r requirements.txt
 - 任意字段自动识别或映射；
 - 数据库和用户登录；
 - AI 摘要、外部 API 或实时股票数据；
-- Docker、云端部署或其他部署功能。
+- Docker、自动部署和已经上线的云端服务；当前仅完成部署准备。

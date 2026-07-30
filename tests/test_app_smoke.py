@@ -26,7 +26,7 @@ def test_page_displays_version_and_privacy_scope_notice() -> None:
     captions = "\n".join(item.value for item in app.caption)
 
     assert APP_VERSION in captions
-    assert "不会主动将上传数据写入data目录" in captions
+    assert "不会主动将上传数据永久写入data目录" in captions
     assert "不提供实时行情、自动交易或投资建议" in captions
 
 

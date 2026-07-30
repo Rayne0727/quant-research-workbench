@@ -15,6 +15,9 @@
 - [ ] `app.py`、`src` 和 `tests` 中的 Python 文件可编译。
 - [ ] README 版本号为 `0.1.0-rc1`。
 - [ ] 页面版本号为 `0.1.0-rc1`。
+- [ ] `requirements.txt` 和 `requirements-dev.txt` 均存在且职责分离。
+- [ ] GitHub Actions CI 对 `master` 运行 pytest 和 compileall。
+- [ ] CI 不引用 Secrets，不执行发布或部署。
 
 ## 单实验回归
 
@@ -49,3 +52,6 @@
 - [ ] 上传内容不会被应用主动写入 `data/`。
 - [ ] 8501 端口空闲时可启动，已占用时脚本明确停止。
 - [ ] 浏览器可以访问 <http://localhost:8501>。
+- [ ] 页面明确区分本地处理和云端处理。
+- [ ] `DEPLOYMENT.md` 和 `SECURITY_AND_PRIVACY.md` 已复核。
+- [ ] 当前未配置 Git remote，未执行 push 或实际部署。

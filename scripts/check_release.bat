@@ -9,6 +9,19 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
+for %%F in (
+    requirements.txt
+    requirements-dev.txt
+    .github\workflows\ci.yml
+    docs\DEPLOYMENT.md
+    docs\SECURITY_AND_PRIVACY.md
+) do (
+    if not exist "%%F" (
+        echo Missing release file: %%F
+        exit /b 1
+    )
+)
+
 ".venv\Scripts\python.exe" -c "from src.config import APP_VERSION; print('APP_VERSION=' + APP_VERSION)"
 if errorlevel 1 exit /b 1
 
