@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.pyc
+.pytest_cache/
+.streamlit/
+
+# Keep user-uploaded data out of version control.
+data/*
+!data/.gitkeep
