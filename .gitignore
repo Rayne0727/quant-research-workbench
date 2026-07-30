@@ -9,3 +9,6 @@ __pycache__/
 data/*
 !data/.gitkeep
 !data/example_daily_returns.csv
+!data/raw/
+data/raw/*
+!data/raw/.gitkeep

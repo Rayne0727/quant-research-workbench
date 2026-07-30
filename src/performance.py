@@ -128,6 +128,86 @@ def calculate_performance_metrics(data: pd.DataFrame) -> dict[str, MetricValue]:
     return metrics
 
 
+def add_nav_performance_series(data: pd.DataFrame) -> pd.DataFrame:
+    """直接使用标准化净值生成回撤，不从辅助收益重建净值。"""
+    if "strategy_nav" not in data.columns:
+        raise PerformanceCalculationError("缺少 strategy_nav，无法计算净值绩效。")
+
+    result = data.copy()
+    strategy_nav = pd.to_numeric(result["strategy_nav"], errors="coerce").astype(
+        float
+    )
+    result["drawdown"] = calculate_drawdown(strategy_nav)
+    return result
+
+
+def calculate_nav_performance_metrics(
+    data: pd.DataFrame,
+) -> dict[str, MetricValue]:
+    """基于标准化净值及其非空推导收益计算绩效指标。"""
+    required_columns = {"date", "strategy_nav", "strategy_return"}
+    if not required_columns.issubset(data.columns):
+        raise PerformanceCalculationError(
+            "净值绩效计算需要 date、strategy_nav 和 strategy_return 字段。"
+        )
+    if len(data) < 2:
+        raise PerformanceCalculationError("至少需要 2 条净值记录才能计算绩效指标。")
+
+    performance_data = add_nav_performance_series(data)
+    strategy_nav = performance_data["strategy_nav"].astype(float)
+    valid_returns = pd.to_numeric(
+        performance_data["strategy_return"], errors="coerce"
+    ).dropna()
+    if valid_returns.empty:
+        raise PerformanceCalculationError("没有有效的净值推导收益可用于绩效计算。")
+    if not all(isfinite(value) for value in valid_returns):
+        raise PerformanceCalculationError("净值推导收益包含 NaN 或无穷大。")
+
+    drawdown = performance_data["drawdown"]
+    n_return_days = len(valid_returns)
+    final_nav = float(strategy_nav.iloc[-1])
+    cumulative_return = final_nav - 1
+    try:
+        annualized_value = final_nav ** (
+            TRADING_DAYS_PER_YEAR / n_return_days
+        ) - 1
+    except OverflowError:
+        annualized_value = float("inf")
+
+    if n_return_days < 2:
+        daily_volatility = None
+        annualized_volatility = None
+        sharpe_ratio = None
+    else:
+        daily_volatility = float(valid_returns.std(ddof=1))
+        annualized_volatility = _finite_or_none(
+            daily_volatility * sqrt(TRADING_DAYS_PER_YEAR)
+        )
+        if isclose(daily_volatility, 0.0, abs_tol=1e-15, rel_tol=0.0):
+            sharpe_ratio = None
+        else:
+            sharpe_ratio = _finite_or_none(
+                float(
+                    valid_returns.mean()
+                    / daily_volatility
+                    * sqrt(TRADING_DAYS_PER_YEAR)
+                )
+            )
+
+    return {
+        "cumulative_return": cumulative_return,
+        "annualized_return": _finite_or_none(annualized_value),
+        "annualized_volatility": annualized_volatility,
+        "sharpe_ratio": sharpe_ratio,
+        "max_drawdown": float(drawdown.min()),
+        "positive_day_ratio": float((valid_returns > 0).mean()),
+        "n_days": n_return_days,
+        "nav_observations": len(performance_data),
+        "start_date": pd.Timestamp(performance_data["date"].iloc[0]),
+        "end_date": pd.Timestamp(performance_data["date"].iloc[-1]),
+    }
+
+
 def _finite_or_none(value: float) -> float | None:
     """将非有限指标转换为 None，避免把 NaN 或无穷大交给页面。"""
     return float(value) if isfinite(value) else None
