@@ -190,6 +190,9 @@ python -m pip install -r requirements.txt
 - 不要反复执行多次启动命令，否则可能产生残留进程或端口冲突；
 - 默认地址是 <http://localhost:8501>；
 - URL 中的查询参数仅用于浏览器刷新或页面状态，不代表正式版本号。
+- 更新 Python 模块后如果页面出现“无法导入名称”等错误，请先在原终端按
+  `Ctrl+C` 完整停止旧服务，再重新执行 `.\scripts\run_app.bat`；仅刷新浏览器
+  不能清除旧进程中的 Python 模块缓存。
 
 ## 运行测试
 

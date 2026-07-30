@@ -23,7 +23,6 @@ from src.reporting import (
     make_report_filename,
     make_standardized_data_filename,
 )
-from src.ui_comparison import render_comparison_page
 
 
 STANDARD_RETURN_FORMAT = "标准日频收益 CSV"
@@ -69,6 +68,18 @@ main_mode = st.radio(
 )
 
 if main_mode == "多实验比较":
+    try:
+        from src.ui_comparison import render_comparison_page
+    except ImportError:
+        st.error(
+            "多实验比较页面模块未能完成加载。"
+            "这通常是 Streamlit 仍保留旧版 Python 模块缓存导致的。"
+        )
+        st.info(
+            "请回到运行 Streamlit 的终端按 Ctrl+C 停止服务，"
+            "然后重新执行 `.\\scripts\\run_app.bat`。"
+        )
+        st.stop()
     render_comparison_page()
     st.stop()
 
