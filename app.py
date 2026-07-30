@@ -23,6 +23,7 @@ from src.reporting import (
     make_report_filename,
     make_standardized_data_filename,
 )
+from src.ui_comparison import render_comparison_page
 
 
 STANDARD_RETURN_FORMAT = "标准日频收益 CSV"
@@ -60,7 +61,18 @@ st.subheader("量化研究实验台")
 st.write(
     "上传标准日频收益或每周调仓净值 CSV，完成字段验证、基础绩效计算和图表展示。"
 )
-st.info("当前支持两种明确的数据格式；系统不会自动猜测或切换文件格式。")
+main_mode = st.radio(
+    "选择分析模式",
+    options=("单实验分析", "多实验比较"),
+    horizontal=True,
+    key="main_analysis_mode",
+)
+
+if main_mode == "多实验比较":
+    render_comparison_page()
+    st.stop()
+
+st.info("当前为单实验分析；系统不会自动猜测或切换文件格式。")
 
 st.markdown("### 1. 数据输入")
 data_mode = st.radio(

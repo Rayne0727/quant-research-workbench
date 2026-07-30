@@ -1,6 +1,6 @@
 # Quant Research Workbench
 
-Quant Research Workbench（量化研究实验台）是一个用于分析量化研究实验结果的本地 Web 应用。本项目面向零基础学习者，当前支持标准日频收益和每周调仓净值两种明确的 CSV 格式。
+Quant Research Workbench（量化研究实验台）是一个用于分析量化研究实验结果的本地 Web 应用。本项目面向零基础学习者，当前提供单实验分析和基于标准化数据的多实验比较两种模式。
 
 ## 当前功能
 
@@ -12,6 +12,8 @@ Quant Research Workbench（量化研究实验台）是一个用于分析量化�
 - 对净值文件中的 `daily_ret` 进行一致性诊断；
 - 生成确定性的中文分析摘要和 Markdown 报告；
 - 下载标准化分析数据 CSV；
+- 对 2 至 6 份标准化分析 CSV 按共同交易日期进行比较；
+- 下载比较指标、共同日期对齐净值和确定性比较报告；
 - 在当前会话中记录可选的实验名称、策略名称和研究备注；
 - 预览清洗后的前 20 行数据。
 
@@ -75,6 +77,29 @@ strategy_return = nav_strat.pct_change()
 
 每周调仓净值格式导出的第一行 `strategy_return` 为空，`strategy_nav` 第一行为 `1`，净值直接来自 `nav_strat` 标准化结果，不使用 `daily_ret` 重建。
 
+## 多实验比较
+
+多实验比较只接受本应用单实验模式导出的标准化分析 CSV，不直接接受标准日频收益、每周调仓净值或其他原始策略文件。准备数据时，先在“单实验分析”中逐份加载原始文件，再点击“下载标准化分析数据”；随后切换到“多实验比较”，一次上传 2 至 6 份标准化文件。
+
+每份比较文件必须包含：
+
+- `date`；
+- `strategy_return`；
+- `strategy_nav`；
+- `drawdown`。
+
+文件可额外包含 `benchmark_return` 和 `benchmark_nav`，但当前跨实验比较只使用策略字段，不比较基准。系统不会自动猜测、映射或修复其他字段。
+
+系统使用所有实验真实交易日期集合的交集，不进行前向填充、后向填充或插值。每条曲线均以共同首日的 `strategy_nav` 重新归一为 `1`，再由共同区间净值计算收益、回撤和绩效指标。共同首日没有共同区间内的前一日净值，因此该日收益保持为空。
+
+不同样本区间的累计收益受开始日期、结束日期和观察天数影响，不能直接公平比较；统一到共同日期交集后，页面中的各项结果才具有一致的时间范围和计算口径。
+
+比较模式提供三种仅在内存中生成的下载：
+
+- `multi_experiment_metrics.csv`：共同区间指标原始数值；
+- `multi_experiment_aligned_nav.csv`：日期及各实验共同区间标准化净值宽表；
+- `multi_experiment_comparison_report.md`：实验清单、覆盖范围、指标和确定性摘要。
+
 ## 指标计算口径
 
 - 累计净值：`(1 + strategy_return).cumprod()`；
@@ -101,7 +126,9 @@ Quant_Research_Workbench/
 │   ├── data_loader.py
 │   ├── adapters.py
 │   ├── performance.py
-│   └── reporting.py
+│   ├── reporting.py
+│   ├── comparison.py
+│   └── ui_comparison.py
 ├── data/
 │   ├── .gitkeep
 │   ├── example_daily_returns.csv
@@ -115,7 +142,8 @@ Quant_Research_Workbench/
     ├── test_data_loader.py
     ├── test_adapters.py
     ├── test_performance.py
-    └── test_reporting.py
+    ├── test_reporting.py
+    └── test_comparison.py
 ```
 
 `data/raw/` 用于保存在本机验收的真实原始数据。该目录中的数据文件被 Git 忽略，只提交用于保留目录结构的 `.gitkeep`。应用不会修改或永久保存用户上传的原始文件。
@@ -171,7 +199,7 @@ python -m pip install -r requirements.txt
 
 ## 当前版本暂不支持
 
-- 多文件或多策略对比；
+- 任意原始策略格式的批量适配和跨实验基准比较；
 - 交易明细、模型预测文件和因子文件；
 - 任意字段自动识别或映射；
 - 数据库和用户登录；

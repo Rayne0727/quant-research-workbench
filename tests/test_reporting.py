@@ -250,6 +250,23 @@ def test_weekly_nav_export_first_nav_equals_one() -> None:
     assert build_standardized_data(data)["strategy_nav"].iloc[0] == 1.0
 
 
+def test_standardized_export_rebases_nav_and_leaves_first_return_empty() -> None:
+    data = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-01-01", "2026-01-02"]),
+            "strategy_return": [0.01, 0.1],
+            "strategy_nav": [1.01, 1.111],
+            "drawdown": [0.0, 0.0],
+        }
+    )
+
+    result = build_standardized_data(data)
+
+    assert result["strategy_nav"].tolist() == pytest.approx([1.0, 1.1])
+    assert pd.isna(result["strategy_return"].iloc[0])
+    assert result["strategy_return"].iloc[1] == pytest.approx(0.1)
+
+
 def test_weekly_nav_export_does_not_use_daily_return() -> None:
     data = pd.DataFrame(
         {
