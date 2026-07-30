@@ -95,21 +95,28 @@ metric_row_one[2].metric(
 )
 metric_row_one[3].metric("夏普比率", _format_number(metrics["sharpe_ratio"]))
 
-metric_row_two = st.columns(4)
+has_benchmark = "benchmark_cumulative_return" in metrics
+metric_row_two = st.columns(4 if has_benchmark else 3)
 metric_row_two[0].metric("最大回撤", _format_percentage(metrics["max_drawdown"]))
 metric_row_two[1].metric(
     "盈利日占比", _format_percentage(metrics["positive_day_ratio"])
 )
 metric_row_two[2].metric("有效交易日数", str(metrics["n_days"]))
-metric_row_two[3].metric(
-    "数据起止日期",
-    f"{_format_date(metrics['start_date'])} 至 {_format_date(metrics['end_date'])}",
-)
-
-if "benchmark_cumulative_return" in metrics:
-    st.metric(
+if has_benchmark:
+    metric_row_two[3].metric(
         "基准累计收益",
         _format_percentage(metrics["benchmark_cumulative_return"]),
+    )
+
+st.markdown("**数据起止日期**")
+date_columns = st.columns(2)
+date_columns[0].write(f"开始日期：{_format_date(metrics['start_date'])}")
+date_columns[1].write(f"结束日期：{_format_date(metrics['end_date'])}")
+
+if int(metrics["n_days"]) < 60:
+    st.warning(
+        "当前样本交易日较少，年化收益、年化波动率和夏普比率对短期表现较敏感，"
+        "仅供参考。"
     )
 
 st.markdown("### 4. 图表")
