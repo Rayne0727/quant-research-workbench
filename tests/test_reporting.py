@@ -1,6 +1,7 @@
 """确定性摘要、Markdown 报告和标准化数据导出测试。"""
 
 from dataclasses import replace
+import re
 
 import pandas as pd
 import pytest
@@ -288,3 +289,72 @@ def test_report_generation_does_not_modify_input_dataframe(
 
 def test_filename_component_replaces_whitespace() -> None:
     assert sanitize_filename_component("  my experiment  ") == "my_experiment"
+
+
+def _section_headings(text: str) -> list[str]:
+    """提取确定性摘要中的编号章节标题。"""
+    return re.findall(r"^### \d+\. .+$", text, flags=re.MULTILINE)
+
+
+def test_continuous_numbering_without_benchmark_with_limitation(
+    standard_context: ReportContext,
+) -> None:
+    context = replace(standard_context, valid_return_count=20)
+
+    assert _section_headings(generate_analysis_summary(context)) == [
+        "### 1. 数据概况",
+        "### 2. 绩效结果",
+        "### 3. 数据限制",
+        "### 4. 固定声明",
+    ]
+
+
+def test_continuous_numbering_with_benchmark_and_limitation(
+    standard_context: ReportContext,
+) -> None:
+    metrics = dict(standard_context.metrics)
+    metrics["benchmark_cumulative_return"] = 0.07
+    context = replace(
+        standard_context,
+        metrics=metrics,
+        has_benchmark=True,
+        valid_return_count=20,
+    )
+
+    assert _section_headings(generate_analysis_summary(context)) == [
+        "### 1. 数据概况",
+        "### 2. 绩效结果",
+        "### 3. 基准信息",
+        "### 4. 数据限制",
+        "### 5. 固定声明",
+    ]
+
+
+def test_continuous_numbering_without_benchmark_or_limitation(
+    standard_context: ReportContext,
+) -> None:
+    assert _section_headings(generate_analysis_summary(standard_context)) == [
+        "### 1. 数据概况",
+        "### 2. 绩效结果",
+        "### 3. 固定声明",
+    ]
+
+
+def test_section_numbering_does_not_jump_from_two_to_four(
+    standard_context: ReportContext,
+) -> None:
+    summary = generate_analysis_summary(
+        replace(standard_context, valid_return_count=20)
+    )
+
+    assert "### 4. 数据限制" not in summary
+
+
+def test_page_summary_and_markdown_report_have_same_section_order(
+    standard_context: ReportContext,
+) -> None:
+    context = replace(standard_context, valid_return_count=20)
+    summary = generate_analysis_summary(context)
+    markdown_report = generate_markdown_report(context)
+
+    assert _section_headings(markdown_report) == _section_headings(summary)

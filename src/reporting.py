@@ -37,13 +37,10 @@ class ReportContext:
 
 def generate_analysis_summary(context: ReportContext) -> str:
     """生成不含主观投资判断的确定性中文分析摘要。"""
-    lines = [
-        "### 1. 数据概况",
-        f"- 实验名称：{context.experiment_name}",
-    ]
+    overview_lines = [f"- 实验名称：{context.experiment_name}"]
     if context.strategy_name:
-        lines.append(f"- 策略名称：{context.strategy_name}")
-    lines.extend(
+        overview_lines.append(f"- 策略名称：{context.strategy_name}")
+    overview_lines.extend(
         [
             f"- 数据格式：{context.data_format}",
             (
@@ -56,26 +53,27 @@ def generate_analysis_summary(context: ReportContext) -> str:
         ]
     )
     if context.primary_field == "nav_strat":
-        lines.append("- 绩效以nav_strat标准化净值及其推导收益为准。")
+        overview_lines.append("- 绩效以nav_strat标准化净值及其推导收益为准。")
 
-    lines.extend(
-        [
-            "",
-            "### 2. 绩效结果",
-            f"- 累计收益：{_format_percentage(context.metrics.get('cumulative_return'))}",
-            f"- 年化收益：{_format_percentage(context.metrics.get('annualized_return'))}",
-            (
-                "- 年化波动率："
-                f"{_format_percentage(context.metrics.get('annualized_volatility'))}"
-            ),
-            f"- 夏普比率：{_format_number(context.metrics.get('sharpe_ratio'))}",
-            f"- 最大回撤：{_format_percentage(context.metrics.get('max_drawdown'))}",
-            (
-                "- 盈利日占比："
-                f"{_format_percentage(context.metrics.get('positive_day_ratio'))}"
-            ),
-        ]
-    )
+    performance_lines = [
+        f"- 累计收益：{_format_percentage(context.metrics.get('cumulative_return'))}",
+        f"- 年化收益：{_format_percentage(context.metrics.get('annualized_return'))}",
+        (
+            "- 年化波动率："
+            f"{_format_percentage(context.metrics.get('annualized_volatility'))}"
+        ),
+        f"- 夏普比率：{_format_number(context.metrics.get('sharpe_ratio'))}",
+        f"- 最大回撤：{_format_percentage(context.metrics.get('max_drawdown'))}",
+        (
+            "- 盈利日占比："
+            f"{_format_percentage(context.metrics.get('positive_day_ratio'))}"
+        ),
+    ]
+
+    sections: list[tuple[str, list[str]]] = [
+        ("数据概况", overview_lines),
+        ("绩效结果", performance_lines),
+    ]
 
     if context.has_benchmark:
         strategy_return = _finite_number(
@@ -89,23 +87,22 @@ def generate_analysis_summary(context: ReportContext) -> str:
             if strategy_return is not None and benchmark_return is not None
             else None
         )
-        lines.extend(
-            [
-                "",
-                "### 3. 基准信息",
-                f"- 基准累计收益：{_format_percentage(benchmark_return)}",
-                f"- 策略累计收益：{_format_percentage(strategy_return)}",
-                f"- 期间累计收益差：{_format_percentage(period_difference)}",
-            ]
+        sections.append(
+            (
+                "基准信息",
+                [
+                    f"- 基准累计收益：{_format_percentage(benchmark_return)}",
+                    f"- 策略累计收益：{_format_percentage(strategy_return)}",
+                    f"- 期间累计收益差：{_format_percentage(period_difference)}",
+                ],
+            )
         )
 
-    lines.extend(["", "### 4. 数据限制"])
-    has_limitation = False
+    limitation_lines: list[str] = []
     if context.valid_return_count < 60:
-        lines.append(
+        limitation_lines.append(
             "- 当前样本交易日较少，年化收益、年化波动率和夏普比率对短期表现较敏感。"
         )
-        has_limitation = True
 
     diagnostics = context.diagnostics
     if diagnostics is not None and diagnostics.mismatch_count > 0:
@@ -114,7 +111,7 @@ def generate_analysis_summary(context: ReportContext) -> str:
             if diagnostics.comparison_count > 0
             else 0.0
         )
-        lines.extend(
+        limitation_lines.extend(
             [
                 f"- daily_ret 有效比较数量：{diagnostics.comparison_count}",
                 f"- daily_ret 不一致日期数量：{diagnostics.mismatch_count}",
@@ -130,12 +127,19 @@ def generate_analysis_summary(context: ReportContext) -> str:
                 "- 当前分析仍以nav_strat为准。",
             ]
         )
-        has_limitation = True
 
-    if not has_limitation:
-        lines.append("- 当前未触发额外的数据限制提示。")
+    if limitation_lines:
+        sections.append(("数据限制", limitation_lines))
+    sections.append(("固定声明", [FIXED_DISCLAIMER]))
 
-    lines.extend(["", "### 5. 固定声明", FIXED_DISCLAIMER])
+    lines: list[str] = []
+    for section_number, (section_title, section_lines) in enumerate(
+        sections, start=1
+    ):
+        if lines:
+            lines.append("")
+        lines.append(f"### {section_number}. {section_title}")
+        lines.extend(section_lines)
     return "\n".join(lines)
 
 
