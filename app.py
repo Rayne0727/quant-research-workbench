@@ -15,6 +15,14 @@ from src.performance import (
     calculate_nav_performance_metrics,
     calculate_performance_metrics,
 )
+from src.reporting import (
+    ReportContext,
+    generate_analysis_summary,
+    generate_markdown_report,
+    generate_standardized_csv,
+    make_report_filename,
+    make_standardized_data_filename,
+)
 
 
 STANDARD_RETURN_FORMAT = "标准日频收益 CSV"
@@ -40,9 +48,9 @@ def _format_date(value: object) -> str:
     return pd.Timestamp(value).strftime("%Y-%m-%d")
 
 
-def _format_difference(value: float | None) -> str:
-    """以足够精度显示一致性诊断差异。"""
-    return "不可用" if value is None else f"{value:.10g}"
+def _format_basis_points(value: float | None) -> str:
+    """将原始小数差异转换为保留两位小数的基点。"""
+    return "不可用" if value is None else f"{value * 10000:.2f} BP"
 
 
 st.set_page_config(page_title="Quant Research Workbench", page_icon="📈")
@@ -128,6 +136,36 @@ except Exception:
     st.error("处理数据时发生未预期错误，请检查 CSV 格式后重试。")
     st.stop()
 
+default_experiment_name = (
+    "示例日频收益实验"
+    if data_mode == "使用示例数据"
+    else Path(uploaded_file.name).stem
+)
+input_identity = (
+    "sample"
+    if data_mode == "使用示例数据"
+    else f"{selected_format}:{uploaded_file.name}"
+)
+with st.expander("实验信息（可选）"):
+    experiment_name = st.text_input(
+        "实验名称",
+        value=default_experiment_name,
+        max_chars=100,
+        key=f"experiment_name:{input_identity}",
+    )
+    strategy_name = st.text_input(
+        "策略名称",
+        value="",
+        max_chars=100,
+        key=f"strategy_name:{input_identity}",
+    )
+    research_notes = st.text_area(
+        "研究备注",
+        value="",
+        max_chars=1000,
+        key=f"research_notes:{input_identity}",
+    )
+
 st.markdown("### 3. 核心指标")
 metric_row_one = st.columns(4)
 metric_row_one[0].metric("累计收益", _format_percentage(metrics["cumulative_return"]))
@@ -168,14 +206,23 @@ if int(metrics["n_days"]) < 60:
 
 if diagnostics is not None:
     st.markdown("#### daily_ret 一致性诊断")
-    diagnostic_columns = st.columns(4)
+    mismatch_ratio = (
+        diagnostics.mismatch_count / diagnostics.comparison_count
+        if diagnostics.comparison_count > 0
+        else 0.0
+    )
+    diagnostic_columns = st.columns(3)
     diagnostic_columns[0].metric("有效比较数量", str(diagnostics.comparison_count))
     diagnostic_columns[1].metric("不一致日期数量", str(diagnostics.mismatch_count))
-    diagnostic_columns[2].metric(
-        "最大绝对差异", _format_difference(diagnostics.max_absolute_difference)
+    diagnostic_columns[2].metric("不一致比例", f"{mismatch_ratio:.2%}")
+    difference_columns = st.columns(2)
+    difference_columns[0].write(
+        "**最大绝对差异（BP）**  \n"
+        f"{_format_basis_points(diagnostics.max_absolute_difference)}"
     )
-    diagnostic_columns[3].metric(
-        "平均绝对差异", _format_difference(diagnostics.mean_absolute_difference)
+    difference_columns[1].write(
+        "**平均绝对差异（BP）**  \n"
+        f"{_format_basis_points(diagnostics.mean_absolute_difference)}"
     )
     if diagnostics.mismatch_count > 0:
         st.warning(
@@ -183,7 +230,11 @@ if diagnostics is not None:
             "当前绩效指标以 nav_strat 为准，daily_ret 仅用于一致性检查。"
         )
         with st.expander("查看前 10 条不一致记录"):
-            st.dataframe(diagnostics.mismatches.head(10), width="stretch")
+            mismatch_preview = diagnostics.mismatches.head(10).copy()
+            mismatch_preview["difference_bps"] = (
+                mismatch_preview["difference"] * 10000
+            )
+            st.dataframe(mismatch_preview, width="stretch")
     else:
         st.success("daily_ret 与 nav_strat 推导收益在容差 1e-8 内一致。")
 
@@ -233,7 +284,45 @@ drawdown_figure.update_layout(
 drawdown_figure.update_yaxes(tickformat=".1%")
 st.plotly_chart(drawdown_figure, width="stretch")
 
-st.markdown("### 5. 数据预览")
+report_context = ReportContext(
+    experiment_name=experiment_name.strip() or "未命名实验",
+    strategy_name=strategy_name.strip(),
+    research_notes=research_notes.strip(),
+    data_format=selected_format,
+    primary_field=primary_field,
+    start_date=pd.Timestamp(metrics["start_date"]),
+    end_date=pd.Timestamp(metrics["end_date"]),
+    observation_count=(
+        int(metrics["nav_observations"]) if is_nav_format else len(cleaned_data)
+    ),
+    valid_return_count=int(metrics["n_days"]),
+    metrics=metrics,
+    has_benchmark=has_benchmark,
+    diagnostics=diagnostics,
+)
+analysis_summary = generate_analysis_summary(report_context)
+markdown_report = generate_markdown_report(report_context)
+standardized_csv = generate_standardized_csv(performance_data)
+
+st.markdown("### 6. 分析摘要")
+st.markdown(analysis_summary)
+
+st.markdown("### 7. 结果导出")
+download_columns = st.columns(2)
+download_columns[0].download_button(
+    "下载分析报告",
+    data=markdown_report.encode("utf-8"),
+    file_name=make_report_filename(experiment_name),
+    mime="text/markdown; charset=utf-8",
+)
+download_columns[1].download_button(
+    "下载标准化分析数据",
+    data=standardized_csv,
+    file_name=make_standardized_data_filename(experiment_name),
+    mime="text/csv; charset=utf-8",
+)
+
+st.markdown("### 8. 数据预览")
 with st.expander("查看清洗后的数据（前 20 行）"):
     st.caption(f"字段：{', '.join(cleaned_data.columns)}")
     st.caption(f"记录数量：{len(cleaned_data)}")

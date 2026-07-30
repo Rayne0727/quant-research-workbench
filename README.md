@@ -10,6 +10,9 @@ Quant Research Workbench（量化研究实验台）是一个用于分析量化�
 - 使用 Plotly 展示累计净值和回撤曲线；
 - 支持可选基准收益，并提供固定示例数据；
 - 对净值文件中的 `daily_ret` 进行一致性诊断；
+- 生成确定性的中文分析摘要和 Markdown 报告；
+- 下载标准化分析数据 CSV；
+- 在当前会话中记录可选的实验名称、策略名称和研究备注；
 - 预览清洗后的前 20 行数据。
 
 ## 支持的数据格式
@@ -61,6 +64,17 @@ strategy_return = nav_strat.pct_change()
 
 `daily_ret` 仅用于与净值推导收益进行一致性诊断。即使两者存在差异，分析也继续以 `nav_strat` 为准，因为净值是该格式中完整反映策略累计结果的主字段；应用不会猜测两者差异属于何种成本口径。
 
+## 分析摘要和导出
+
+分析摘要由固定规则生成，不使用 OpenAI API 或其他模型。摘要以中性方式记录数据概况、绩效结果、可选基准信息、数据限制和固定声明。
+
+页面提供两种内存导出，不会把下载内容写入 `data/`：
+
+- Markdown 分析报告：包含实验信息、核心指标、可选基准结果、适用的一致性诊断和固定声明；
+- 标准化分析 CSV：包含 `date`、`strategy_return`、`strategy_nav`、`drawdown`，存在基准时还包含 `benchmark_return` 和 `benchmark_nav`。
+
+每周调仓净值格式导出的第一行 `strategy_return` 为空，`strategy_nav` 第一行为 `1`，净值直接来自 `nav_strat` 标准化结果，不使用 `daily_ret` 重建。
+
 ## 指标计算口径
 
 - 累计净值：`(1 + strategy_return).cumprod()`；
@@ -86,18 +100,22 @@ Quant_Research_Workbench/
 │   ├── sample_data.py
 │   ├── data_loader.py
 │   ├── adapters.py
-│   └── performance.py
+│   ├── performance.py
+│   └── reporting.py
 ├── data/
 │   ├── .gitkeep
 │   ├── example_daily_returns.csv
 │   └── raw/
 │       └── .gitkeep
+├── scripts/
+│   └── run_app.bat
 └── tests/
     ├── __init__.py
     ├── test_sample_data.py
     ├── test_data_loader.py
     ├── test_adapters.py
-    └── test_performance.py
+    ├── test_performance.py
+    └── test_reporting.py
 ```
 
 `data/raw/` 用于保存在本机验收的真实原始数据。该目录中的数据文件被 Git 忽略，只提交用于保留目录结构的 `.gitkeep`。应用不会修改或永久保存用户上传的原始文件。
@@ -118,13 +136,32 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-## 启动应用
+## 启动和停止应用
+
+推荐在 PowerShell 中使用安全启动脚本：
 
 ```powershell
-.\.venv\Scripts\python.exe -m streamlit run app.py
+.\scripts\run_app.bat
+```
+
+脚本会自动切换到项目根目录、检查虚拟环境，并在启动前确认 8501 端口未被占用。脚本不会自动结束任何进程。
+
+也可以直接执行：
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run app.py --server.port 8501
 ```
 
 启动后，在浏览器中访问：<http://localhost:8501>
+
+注意：
+
+- Streamlit 启动后，运行终端中的进程会持续工作；
+- 关闭浏览器标签页不会停止 Streamlit；
+- 停止应用时，请回到运行终端并按 `Ctrl+C`；
+- 不要反复执行多次启动命令，否则可能产生残留进程或端口冲突；
+- 默认地址是 <http://localhost:8501>；
+- URL 中的查询参数仅用于浏览器刷新或页面状态，不代表正式版本号。
 
 ## 运行测试
 
