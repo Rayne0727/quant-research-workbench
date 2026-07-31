@@ -68,7 +68,17 @@ def test_page_privacy_notice_distinguishes_local_and_cloud_processing() -> None:
     assert "当前电脑的应用进程" in page_text
     assert "公开云端版本" in page_text
     assert "云端应用进程" in page_text
-    assert "请勿上传" in page_text
+    sensitive_warning_terms = (
+        "请勿上传",
+        "账号密码",
+        "API密钥",
+        "交易凭证",
+        "个人敏感信息",
+        "商业机密",
+        "受限制数据",
+    )
+    for term in sensitive_warning_terms:
+        assert term in page_text
 
 
 def test_runtime_and_development_requirements_are_separated() -> None:
