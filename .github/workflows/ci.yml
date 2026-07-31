@@ -12,12 +12,13 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Node 24 migration: actions/checkout@v4 and actions/setup-python@v5 were upgraded below.
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.14"
           cache: pip
