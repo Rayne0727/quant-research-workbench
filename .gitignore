@@ -3,7 +3,8 @@ __pycache__/
 *.py[cod]
 *.pyc
 .pytest_cache/
-.streamlit/
+.streamlit/*
+!.streamlit/config.toml
 *.log
 
 # Keep user-uploaded data out of version control.

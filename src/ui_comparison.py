@@ -28,6 +28,7 @@ from src.reporting import (
 )
 from src.sample_data import generate_comparison_sample_data
 from src.templates import generate_comparison_template_csv
+from src.ui_common import render_page_header
 
 
 LOGGER = logging.getLogger(__name__)
@@ -50,18 +51,23 @@ def render_comparison_page() -> None:
 
 def _render_comparison_page() -> None:
     """组织只接受标准化 CSV 的多实验比较内容。"""
+    render_page_header(
+        "多实验比较",
+        "上传 2 至 6 份标准化分析 CSV，在真实共同交易日期上统一比较绩效与回撤。",
+        "比较中心",
+    )
     st.info(
         "多实验比较仅使用标准化文件中的策略字段；"
         "基准字段暂不参与跨实验比较。"
     )
-    st.markdown("### 1. 数据输入")
+    st.markdown("### 1. 上传标准化数据")
     source_mode = st.radio(
         "选择比较数据来源",
         options=("使用比较示例数据", "上传标准化 CSV"),
         horizontal=True,
         key="comparison_source_mode",
+        help="先用固定示例熟悉比较结果，或上传单实验分析导出的标准化 CSV。",
     )
-    st.caption("当前模式：多实验比较")
     st.caption(
         f"上传限制：2 至 {MAX_COMPARISON_FILES} 份文件，每份最大 "
         f"{COMPARISON_FILE_MAX_MB} MB、最多 {MAX_ROWS_PER_FILE} 行。"
@@ -75,11 +81,13 @@ def _render_comparison_page() -> None:
         "不代表真实策略结果。"
     )
     st.download_button(
-        "下载标准化比较CSV模板",
+        "下载标准化比较 CSV 模板",
         data=generate_comparison_template_csv(),
         file_name="standardized_comparison_template.csv",
         mime="text/csv; charset=utf-8",
         key="comparison_template_download",
+        help="下载只演示多实验输入字段与首行规则的标准化 CSV 模板。",
+        icon=":material/download:",
     )
 
     if source_mode == "使用比较示例数据":
@@ -92,6 +100,11 @@ def _render_comparison_page() -> None:
             type=("csv",),
             accept_multiple_files=True,
             key="comparison_uploaded_files",
+            help=(
+                "仅接受由单实验分析导出的标准化 CSV；"
+                f"每份最大 {COMPARISON_FILE_MAX_MB} MB、最多 {MAX_ROWS_PER_FILE} 行。"
+            ),
+            max_upload_size=COMPARISON_FILE_MAX_MB,
         )
         st.caption(f"上传文件数量：{len(uploaded_files)}")
         if uploaded_files:
@@ -115,10 +128,14 @@ def _render_comparison_page() -> None:
             ]
         )
 
+    st.markdown("### 2. 文件与实验名称检查")
     experiment_names = [
         experiment.name for experiment in result.experiments
     ]
-    st.caption(f"实验名称：{'、'.join(experiment_names)}")
+    st.success(
+        f"已通过 {len(experiment_names)} 份标准化文件检查："
+        f"{'、'.join(experiment_names)}"
+    )
     _render_coverage(result)
     _render_metrics(result)
     _render_charts(result)
@@ -127,7 +144,7 @@ def _render_comparison_page() -> None:
 
 def _render_coverage(result: ComparisonResult) -> None:
     """展示原始数据覆盖范围和共同交易日期概况。"""
-    st.markdown("### 2. 数据覆盖概况")
+    st.markdown("### 3. 共同区间说明")
     coverage_display = result.coverage_table.rename(
         columns={
             "experiment_name": "实验名称",
@@ -142,18 +159,19 @@ def _render_coverage(result: ComparisonResult) -> None:
         ).dt.strftime("%Y-%m-%d")
     st.dataframe(coverage_display, hide_index=True, width="stretch")
 
-    common_columns = st.columns(4)
+    common_columns = st.columns(2)
     common_columns[0].metric(
-        "共同开始日期", result.common_start_date.strftime("%Y-%m-%d")
-    )
-    common_columns[1].metric(
-        "共同结束日期", result.common_end_date.strftime("%Y-%m-%d")
-    )
-    common_columns[2].metric(
         "共同净值观察日数", str(result.common_nav_observations)
     )
-    common_columns[3].metric(
+    common_columns[1].metric(
         "共同有效收益日数", str(result.common_return_observations)
+    )
+    date_columns = st.columns(2)
+    date_columns[0].write(
+        f"**共同开始日期**  \n{result.common_start_date.strftime('%Y-%m-%d')}"
+    )
+    date_columns[1].write(
+        f"**共同结束日期**  \n{result.common_end_date.strftime('%Y-%m-%d')}"
     )
     st.info("以下指标均基于所有实验共同存在的交易日期重新计算。")
     if result.common_return_observations < 60:
@@ -165,7 +183,7 @@ def _render_coverage(result: ComparisonResult) -> None:
 
 def _render_metrics(result: ComparisonResult) -> None:
     """展示经过格式化的共同区间核心指标表。"""
-    st.markdown("### 3. 核心比较指标表")
+    st.markdown("### 4. 核心比较表")
     metrics_display = result.metrics_table[
         [
             "experiment_name",
@@ -206,7 +224,8 @@ def _render_metrics(result: ComparisonResult) -> None:
 
 def _render_charts(result: ComparisonResult) -> None:
     """绘制共同区间净值和回撤两张独立图表。"""
-    st.markdown("### 4. 净值比较图")
+    st.markdown("### 5. 净值与回撤图")
+    st.markdown("#### 净值比较")
     nav_figure = go.Figure()
     for experiment_name, aligned_data in result.aligned_experiments.items():
         nav_figure.add_trace(
@@ -224,7 +243,7 @@ def _render_charts(result: ComparisonResult) -> None:
     )
     st.plotly_chart(nav_figure, width="stretch")
 
-    st.markdown("### 5. 回撤比较图")
+    st.markdown("#### 回撤比较")
     drawdown_figure = go.Figure()
     for experiment_name, aligned_data in result.aligned_experiments.items():
         drawdown_figure.add_trace(
@@ -257,28 +276,36 @@ def _render_summary_and_downloads(result: ComparisonResult) -> None:
         common_nav_observations=result.common_nav_observations,
         common_return_observations=result.common_return_observations,
     )
-    st.markdown("### 6. 确定性比较摘要")
+    st.markdown("### 6. 比较摘要")
     st.markdown(generate_comparison_summary(context))
 
-    st.markdown("### 7. 比较结果导出")
+    st.markdown("### 7. 结果导出")
+    st.caption("三种下载均在内存中生成，不会由应用主动写入 data 目录。")
     download_columns = st.columns(3)
     download_columns[0].download_button(
         "下载比较指标",
         data=generate_comparison_metrics_csv(result),
         file_name="multi_experiment_metrics.csv",
         mime="text/csv; charset=utf-8",
+        help="下载各实验在共同区间内重新计算的核心指标 CSV。",
+        icon=":material/download:",
+        type="primary",
     )
     download_columns[1].download_button(
         "下载对齐净值数据",
         data=generate_aligned_nav_csv(result),
         file_name="multi_experiment_aligned_nav.csv",
         mime="text/csv; charset=utf-8",
+        help="下载各实验在共同交易日期上对齐并重新归一的净值 CSV。",
+        icon=":material/download:",
     )
     download_columns[2].download_button(
         "下载比较报告",
         data=generate_comparison_markdown_report(context).encode("utf-8"),
         file_name="multi_experiment_comparison_report.md",
         mime="text/markdown; charset=utf-8",
+        help="下载包含实验清单、共同区间、指标和确定性摘要的 Markdown 报告。",
+        icon=":material/download:",
     )
 
 
