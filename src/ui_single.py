@@ -19,6 +19,14 @@ from src.file_import import (
     import_table,
     read_uploaded_bytes,
 )
+from src.field_detection import (
+    MAX_PROFILE_SAMPLE_SIZE,
+    ROLE_LABELS,
+    ROLE_ORDER,
+    DetectionResult,
+    FieldCandidate,
+    detect_field_candidates,
+)
 from src.limits import UploadLimitError
 from src.performance import (
     PerformanceCalculationError,
@@ -45,6 +53,14 @@ WEEKLY_NAV_FORMAT = "每周调仓净值 CSV"
 UNEXPECTED_ERROR_MESSAGE = (
     "应用处理过程中出现未预期错误。请检查文件格式；"
     "若问题持续存在，请重新启动应用并保留错误发生步骤。"
+)
+FIELD_SUGGESTION_NOTICE = (
+    "字段识别结果仅为确定性规则生成的建议。"
+    "系统尚未建立字段映射，也不会使用当前文件计算绩效。"
+)
+FIELD_SUGGESTION_BOUNDARY = (
+    "当前结果仅用于帮助确认字段。系统尚未建立字段映射，"
+    "不会基于这些建议计算收益、净值、回撤或其他绩效指标。"
 )
 
 
@@ -480,15 +496,119 @@ def _render_import_result(result: ImportedTable) -> None:
     st.caption("仅显示前 20 行；读取结果中保留完整数据，未截断、抽样或删列。")
     st.dataframe(result.dataframe.head(20), width="stretch")
 
-    st.markdown("### 7. 下一阶段说明")
-    st.success(
-        "文件已成功读取。下一阶段将进行字段识别与映射；"
-        "当前尚未使用这些数据计算绩效。"
-    )
-    st.info(
-        "文件读取完成，但尚未建立业务字段映射，"
-        "因此当前不会计算收益、净值、回撤或其他绩效指标。"
-    )
+    _render_field_detection(result.dataframe)
+
+    st.markdown("### 8. 当前阶段边界")
+    st.success("文件已成功读取并生成字段建议；当前未建立字段映射或进行绩效计算。")
+    st.info(FIELD_SUGGESTION_BOUNDARY)
+
+
+def _candidate_rows(
+    detection: DetectionResult,
+) -> list[dict[str, object]]:
+    """整理每个角色最多三个候选，供折叠区展示。"""
+    rows: list[dict[str, object]] = []
+    for role in ROLE_ORDER:
+        suggestion = detection.suggestions[role]
+        candidates: list[FieldCandidate] = []
+        if suggestion.recommended is not None:
+            candidates.append(suggestion.recommended)
+        candidates.extend(suggestion.alternatives)
+        for rank, candidate in enumerate(candidates[:3], start=1):
+            rows.append(
+                {
+                    "业务角色": f"{role}（{ROLE_LABELS[role]}）",
+                    "排名": rank,
+                    "字段": candidate.column_name,
+                    "置信度": candidate.confidence,
+                    "评分": candidate.score,
+                    "判断理由": "；".join(candidate.reasons) or "无明确支持理由",
+                    "风险提示": "；".join(candidate.warnings) or "—",
+                }
+            )
+    return rows
+
+
+def _profile_rows(detection: DetectionResult) -> list[dict[str, object]]:
+    """将字段画像转换为只读表格行。"""
+    rows: list[dict[str, object]] = []
+    for profile in detection.column_profiles.values():
+        rows.append(
+            {
+                "原始字段": profile.column_name,
+                "归一化名称": profile.normalized_name,
+                "数据类型": profile.dtype,
+                "非空数": profile.non_null_count,
+                "非空比例": f"{profile.non_null_ratio:.1%}",
+                "样本唯一值数": profile.unique_count,
+                "数值比例": f"{profile.numeric_ratio:.1%}",
+                "日期解析比例": f"{profile.date_parse_ratio:.1%}",
+                "有限数值": "是" if profile.all_finite_numeric else "否",
+                "最小值": profile.numeric_min,
+                "最大值": profile.numeric_max,
+                "单调递增": "是" if profile.monotonic_increasing else "否",
+                "单调递减": "是" if profile.monotonic_decreasing else "否",
+                "混合类型": "是" if profile.mixed_types else "否",
+                "画像样本数": profile.analyzed_count,
+            }
+        )
+    return rows
+
+
+def _render_field_detection(dataframe: pd.DataFrame) -> None:
+    """在原始预览下展示建议，但不建立映射或触发计算。"""
+    detection = detect_field_candidates(dataframe)
+    st.markdown("### 7. 字段识别建议")
+    st.warning(FIELD_SUGGESTION_NOTICE)
+
+    summary_rows: list[dict[str, object]] = []
+    for role in ROLE_ORDER:
+        suggestion = detection.suggestions[role]
+        candidate = suggestion.recommended
+        summary_rows.append(
+            {
+                "业务角色": f"{role}（{ROLE_LABELS[role]}）",
+                "推荐字段": candidate.column_name if candidate else "未识别",
+                "置信度": candidate.confidence if candidate else "未识别",
+                "评分": str(candidate.score) if candidate else "未识别",
+                "主要理由": (
+                    "；".join(candidate.reasons[:2])
+                    if candidate and candidate.reasons
+                    else "没有达到最低建议阈值"
+                ),
+                "风险提示": (
+                    "；".join(candidate.warnings)
+                    if candidate and candidate.warnings
+                    else "—"
+                ),
+            }
+        )
+    st.dataframe(pd.DataFrame(summary_rows), hide_index=True, width="stretch")
+
+    for warning in detection.global_warnings:
+        st.warning(warning)
+
+    with st.expander("查看备选字段和字段画像", expanded=False):
+        st.caption(
+            f"每个字段画像最多分析 {MAX_PROFILE_SAMPLE_SIZE:,} 个非空观察值；"
+            "抽样位置固定，不使用随机数。"
+        )
+        st.write("**每个角色最多三个候选**")
+        candidate_rows = _candidate_rows(detection)
+        if candidate_rows:
+            st.dataframe(
+                pd.DataFrame(candidate_rows),
+                hide_index=True,
+                width="stretch",
+            )
+        else:
+            st.write("没有字段达到候选展示阈值。")
+        st.write("**字段画像**")
+        st.dataframe(
+            pd.DataFrame(_profile_rows(detection)),
+            hide_index=True,
+            width="stretch",
+        )
 
 
 def _render_diagnostics(diagnostics: object) -> None:
