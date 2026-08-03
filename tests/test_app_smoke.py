@@ -171,9 +171,21 @@ def test_sidebar_uses_concise_privacy_notice() -> None:
     sidebar_warnings = [warning.value for warning in app.sidebar.warning]
 
     assert sidebar_warnings == [SIDEBAR_PRIVACY_NOTICE]
+    assert SIDEBAR_PRIVACY_NOTICE == (
+        "公开云端版本会在云端应用进程中处理上传文件。"
+        "请勿上传敏感或受限制数据。"
+    )
     assert "云端应用进程" in SIDEBAR_PRIVACY_NOTICE
     assert "敏感或受限制数据" in SIDEBAR_PRIVACY_NOTICE
-    assert "账号密码" not in SIDEBAR_PRIVACY_NOTICE
+    detailed_terms = (
+        "账号密码",
+        "API密钥",
+        "交易凭证",
+        "个人敏感信息",
+        "商业机密",
+    )
+    for term in detailed_terms:
+        assert term not in SIDEBAR_PRIVACY_NOTICE
 
 
 @pytest.mark.parametrize("page_name", ("首页", "使用说明"))
@@ -199,7 +211,28 @@ def test_all_pages_display_version_from_shared_config(page_name: str) -> None:
     if page_name != "首页":
         _open_page(app, page_name)
 
-    assert f"v{APP_VERSION}" in _visible_text(app)
+    page_text = _visible_text(app)
+
+    assert f"v{APP_VERSION}" in page_text
+    assert f"V{APP_VERSION.upper()}" not in page_text
+
+
+def test_quick_guide_version_keeps_configured_case() -> None:
+    app = _open_page(_load_app(), "使用说明")
+    kicker_markup = [
+        item.value
+        for item in app.markdown
+        if 'class="qrw-kicker"' in str(item.value)
+    ]
+    style_markup = next(
+        item.value for item in app.markdown if "<style>" in str(item.value)
+    )
+
+    assert kicker_markup == [
+        f'<p class="qrw-kicker">快速指南 · v{APP_VERSION}</p>'
+    ]
+    assert "text-transform: none;" in style_markup
+    assert "text-transform: uppercase;" not in style_markup
 
 
 def test_ui_modules_do_not_hardcode_release_version() -> None:
@@ -212,6 +245,10 @@ def test_ui_modules_do_not_hardcode_release_version() -> None:
 
     assert all(
         "0.1.0-rc1" not in path.read_text(encoding="utf-8")
+        for path in ui_paths
+    )
+    assert all(
+        "APP_VERSION.upper()" not in path.read_text(encoding="utf-8")
         for path in ui_paths
     )
 
