@@ -27,6 +27,18 @@ from src.field_detection import (
     FieldCandidate,
     detect_field_candidates,
 )
+from src.field_mapping import (
+    PRIMARY_BASIS_NAV,
+    PRIMARY_BASIS_RETURN,
+    ConfirmedMapping,
+    MappingImportIssues,
+    build_mapping_source_key,
+    build_suggested_mapping,
+    confirm_mapping,
+    is_confirmed_mapping_current,
+    update_mapping_draft,
+    validate_mapping,
+)
 from src.limits import UploadLimitError
 from src.performance import (
     PerformanceCalculationError,
@@ -62,6 +74,28 @@ FIELD_SUGGESTION_BOUNDARY = (
     "当前结果仅用于帮助确认字段。系统尚未建立字段映射，"
     "不会基于这些建议计算收益、净值、回撤或其他绩效指标。"
 )
+MAPPING_STATE_PREFIX = "qrw_field_mapping"
+MAPPING_SOURCE_KEY = f"{MAPPING_STATE_PREFIX}:source_key"
+MAPPING_CONFIRMED_KEY = f"{MAPPING_STATE_PREFIX}:confirmed"
+MAPPING_INVALIDATED_KEY = f"{MAPPING_STATE_PREFIX}:invalidation_pending"
+PRIMARY_BASIS_LABELS = {
+    "请选择": None,
+    "策略收益率为主": PRIMARY_BASIS_RETURN,
+    "策略净值为主": PRIMARY_BASIS_NAV,
+}
+PRIMARY_BASIS_VALUE_LABELS = {
+    value: label for label, value in PRIMARY_BASIS_LABELS.items()
+}
+ROLE_MAPPING_LABELS = {
+    "date": "日期",
+    "strategy_return": "策略收益率",
+    "strategy_nav": "策略净值",
+    "benchmark_return": "基准收益率",
+    "benchmark_nav": "基准净值",
+    "drawdown": "回撤序列",
+    "daily_ret": "辅助日收益 daily_ret",
+}
+UNMAPPED_OPTION = "不映射"
 
 
 def render_single_page() -> None:
@@ -388,8 +422,8 @@ def _render_single_page() -> None:
 def _render_general_file_import() -> None:
     """读取通用 CSV/XLSX 并展示原始预览，不进入业务分析。"""
     st.info(
-        "此入口只负责文件读取和原始预览。"
-        "它不会猜测字段，也不会进入现有绩效分析流程。"
+        "此入口只负责文件读取、字段建议和用户确认式字段映射。"
+        "映射确认后仍不会进入现有绩效分析流程。"
     )
 
     st.markdown("### 2. 上传文件")
@@ -404,12 +438,13 @@ def _render_general_file_import() -> None:
         max_upload_size=SINGLE_FILE_MAX_MB,
     )
     if uploaded_file is None:
+        _clear_mapping_session_state()
         st.caption(
             "请选择 CSV 或 XLSX 文件。上传后将先确认解析设置，"
             "再显示字段和前 20 行原始预览。"
         )
         st.warning(
-            "文件尚未读取。当前尚未进行字段映射或绩效计算。"
+            "文件尚未读取。当前尚未进行字段映射确认或绩效计算。"
         )
         return
 
@@ -456,10 +491,10 @@ def _render_general_file_import() -> None:
                 return
         result = import_table(file_name, content, sheet_name=selected_sheet)
 
-    _render_import_result(result)
+    _render_import_result(result, content)
 
 
-def _render_import_result(result: ImportedTable) -> None:
+def _render_import_result(result: ImportedTable, content: bytes) -> None:
     """展示通用读取结果，不修改或删除任何数据。"""
     st.markdown("### 4. 文件基础信息")
     info_columns = st.columns(2)
@@ -495,12 +530,28 @@ def _render_import_result(result: ImportedTable) -> None:
     st.markdown("### 6. 原始数据预览")
     st.caption("仅显示前 20 行；读取结果中保留完整数据，未截断、抽样或删列。")
     st.dataframe(result.dataframe.head(20), width="stretch")
+    st.success("文件已成功读取；请继续核对字段建议并确认字段映射。")
 
-    _render_field_detection(result.dataframe)
+    detection = detect_field_candidates(result.dataframe)
+    _render_field_detection(detection)
 
-    st.markdown("### 8. 当前阶段边界")
-    st.success("文件已成功读取并生成字段建议；当前未建立字段映射或进行绩效计算。")
-    st.info(FIELD_SUGGESTION_BOUNDARY)
+    source_key = build_mapping_source_key(
+        content=content,
+        file_type=result.file_type,
+        sheet_name=result.sheet_name,
+        encoding=result.encoding,
+        delimiter=result.delimiter,
+        header_rule="first_row",
+        columns=result.column_names,
+    )
+    _render_field_mapping(result, detection, source_key)
+
+    st.markdown("### 9. 下一阶段说明")
+    st.info(
+        "尚未执行数据标准化、收益率单位转换、绩效计算、"
+        "图表生成或结果导出。"
+    )
+    st.caption("B.4 才会按照已确认映射执行标准化和严格数据验证。")
 
 
 def _candidate_rows(
@@ -555,9 +606,8 @@ def _profile_rows(detection: DetectionResult) -> list[dict[str, object]]:
     return rows
 
 
-def _render_field_detection(dataframe: pd.DataFrame) -> None:
+def _render_field_detection(detection: DetectionResult) -> None:
     """在原始预览下展示建议，但不建立映射或触发计算。"""
-    detection = detect_field_candidates(dataframe)
     st.markdown("### 7. 字段识别建议")
     st.warning(FIELD_SUGGESTION_NOTICE)
 
@@ -609,6 +659,273 @@ def _render_field_detection(dataframe: pd.DataFrame) -> None:
             hide_index=True,
             width="stretch",
         )
+
+
+def _mapping_source_state_prefix(source_key: str) -> str:
+    return f"{MAPPING_STATE_PREFIX}:source:{source_key}"
+
+
+def _mapping_widget_key(role: str, source_key: str) -> str:
+    return f"{_mapping_source_state_prefix(source_key)}:role:{role}"
+
+
+def _mapping_basis_widget_key(source_key: str) -> str:
+    return f"{_mapping_source_state_prefix(source_key)}:primary_basis"
+
+
+def _mapping_acknowledgement_widget_key(source_key: str) -> str:
+    return f"{_mapping_source_state_prefix(source_key)}:acknowledgement"
+
+
+def _clear_mapping_session_state() -> None:
+    """清除当前会话中的映射选择和确认，不影响上传数据。"""
+    had_confirmed_mapping = isinstance(
+        st.session_state.get(MAPPING_CONFIRMED_KEY),
+        ConfirmedMapping,
+    )
+    for key in tuple(st.session_state):
+        if key.startswith(MAPPING_STATE_PREFIX) and key != MAPPING_INVALIDATED_KEY:
+            st.session_state.pop(key, None)
+    if had_confirmed_mapping:
+        st.session_state[MAPPING_INVALIDATED_KEY] = True
+
+
+def _prepare_mapping_session_state(source_key: str) -> bool:
+    """来源变化时使旧确认失效，并返回是否需要显示失效提示。"""
+    previous_source_key = st.session_state.get(MAPPING_SOURCE_KEY)
+    confirmed = st.session_state.get(MAPPING_CONFIRMED_KEY)
+    source_changed = (
+        previous_source_key is not None
+        and previous_source_key != source_key
+    )
+    invalidation_pending = bool(
+        st.session_state.pop(MAPPING_INVALIDATED_KEY, False)
+    )
+    invalidated = bool(
+        invalidation_pending or (source_changed and confirmed is not None)
+    )
+    if previous_source_key != source_key:
+        previous_prefix = (
+            _mapping_source_state_prefix(previous_source_key)
+            if isinstance(previous_source_key, str)
+            else None
+        )
+        for key in tuple(st.session_state):
+            if key == MAPPING_CONFIRMED_KEY or (
+                previous_prefix is not None and key.startswith(previous_prefix)
+            ):
+                st.session_state.pop(key, None)
+        st.session_state[MAPPING_SOURCE_KEY] = source_key
+    return invalidated
+
+
+def _role_requirement(role: str, primary_basis: str | None) -> str:
+    if role == "date":
+        return "必需"
+    if role == primary_basis:
+        return "主口径必需"
+    if role in {"drawdown", "daily_ret"}:
+        return "可选 · 诊断用途"
+    if role in {"strategy_return", "strategy_nav"}:
+        return "可选 · 一致性检查候选"
+    return "可选"
+
+
+def _role_purpose(role: str, primary_basis: str) -> str:
+    if role == "date":
+        return "后续严格验证的日期字段"
+    if role == primary_basis:
+        return "用户选定的策略分析主口径"
+    if role in {"strategy_return", "strategy_nav", "daily_ret"}:
+        return "辅助字段，仅供后续一致性检查"
+    if role == "drawdown":
+        return "诊断用途，不覆盖主口径"
+    return "可选基准字段，等待后续严格验证"
+
+
+def _candidate_score(
+    detection: DetectionResult,
+    role: str,
+    column_name: str | None,
+) -> int | None:
+    if column_name is None:
+        return None
+    suggestion = detection.suggestions[role]
+    candidates: list[FieldCandidate] = []
+    if suggestion.recommended is not None:
+        candidates.append(suggestion.recommended)
+    candidates.extend(suggestion.alternatives)
+    for candidate in candidates:
+        if candidate.column_name == column_name:
+            return candidate.score
+    return None
+
+
+def _render_confirmed_mapping_summary(
+    confirmed: ConfirmedMapping,
+    detection: DetectionResult,
+) -> None:
+    """展示会话内确认结果，不生成标准化数据或分析结果。"""
+    st.markdown("### 8.1 已确认映射摘要")
+    st.success("字段映射已确认。")
+    summary_rows: list[dict[str, object]] = []
+    for role in ROLE_ORDER:
+        column_name = confirmed.role_to_column.get(role)
+        recommended = detection.suggestions[role].recommended_field
+        score = _candidate_score(detection, role, column_name)
+        summary_rows.append(
+            {
+                "业务角色": f"{role}（{ROLE_MAPPING_LABELS[role]}）",
+                "原始字段": column_name or "不映射",
+                "是否为主口径字段": "是" if role == confirmed.primary_basis else "否",
+                "B.2建议分数": str(score) if score is not None else "无候选分数",
+                "与系统首选建议是否一致": (
+                    "是"
+                    if column_name is not None and column_name == recommended
+                    else "否" if column_name is not None else "不适用"
+                ),
+                "当前用途": _role_purpose(role, confirmed.primary_basis),
+            }
+        )
+    st.dataframe(pd.DataFrame(summary_rows), hide_index=True, width="stretch")
+    if confirmed.warnings:
+        st.write("**确认时保留的风险提示：**")
+        for warning in confirmed.warnings:
+            st.warning(warning)
+    st.info(
+        "字段映射已确认，但当前尚未执行数据标准化或绩效计算。"
+        "下一阶段将按照确认的映射进行严格验证。"
+    )
+    st.caption(
+        "尚未执行数据标准化、收益率单位转换、绩效计算、"
+        "图表生成或结果导出。"
+    )
+
+
+def _render_field_mapping(
+    result: ImportedTable,
+    detection: DetectionResult,
+    source_key: str,
+) -> None:
+    """收集并显式确认字段引用，确认后仍不进入业务分析。"""
+    st.markdown("### 8. 确认字段映射")
+    st.warning(
+        "高置信度建议仍需用户核对。系统不会自动判断收益率单位，"
+        "也不会修改原始数据。"
+    )
+    if _prepare_mapping_session_state(source_key):
+        st.warning("文件或解析设置已变化，请重新确认字段映射。")
+
+    suggested = build_suggested_mapping(
+        result.column_names,
+        detection,
+        source_key=source_key,
+    )
+    import_issues = MappingImportIssues(
+        duplicate_column_names=result.duplicate_column_names,
+        empty_column_names=result.empty_column_names,
+        whitespace_column_names=result.whitespace_column_names,
+        unnamed_columns=result.unnamed_columns,
+    )
+    basis_default_label = PRIMARY_BASIS_VALUE_LABELS[suggested.primary_basis]
+
+    with st.form(f"{_mapping_source_state_prefix(source_key)}:form"):
+        basis_label = st.selectbox(
+            "策略分析主口径",
+            options=tuple(PRIMARY_BASIS_LABELS),
+            index=tuple(PRIMARY_BASIS_LABELS).index(basis_default_label),
+            key=_mapping_basis_widget_key(source_key),
+            help=(
+                "即使策略收益率和策略净值同时存在，也必须由用户明确选择。"
+                "系统不会静默决定最终主口径。"
+            ),
+        )
+        primary_basis = PRIMARY_BASIS_LABELS[basis_label]
+        st.caption(
+            "收益率主口径必须映射 date 和 strategy_return；"
+            "净值主口径必须映射 date 和 strategy_nav。"
+        )
+
+        role_to_column: dict[str, str | None] = {}
+        options = (UNMAPPED_OPTION, *result.column_names)
+        for role in ROLE_ORDER:
+            suggestion = detection.suggestions[role]
+            recommended = suggestion.recommended
+            prefilled = suggested.role_to_column.get(role)
+            index = options.index(prefilled) if prefilled in options else 0
+            selected_option = st.selectbox(
+                f"{role} · {ROLE_MAPPING_LABELS[role]}",
+                options=options,
+                index=index,
+                key=_mapping_widget_key(role, source_key),
+                help="请选择原始字段名称；同一个原始字段不能承担多个角色。",
+            )
+            role_to_column[role] = (
+                None if selected_option == UNMAPPED_OPTION else selected_option
+            )
+            if recommended is None:
+                recommendation_text = "B.2 首选建议：未识别"
+            else:
+                recommendation_text = (
+                    f"B.2 首选建议：{recommended.column_name} · "
+                    f"{recommended.confidence} · {recommended.score} 分"
+                )
+            st.caption(
+                f"{_role_requirement(role, primary_basis)} · {recommendation_text}"
+            )
+
+        acknowledgement = st.checkbox(
+            "我已核对字段含义，并理解系统不会自动判断收益率单位、"
+            "不会自动修改原始数据，当前确认也不会立即计算绩效。",
+            key=_mapping_acknowledgement_widget_key(source_key),
+        )
+        draft = update_mapping_draft(
+            suggested,
+            primary_basis=primary_basis,
+            role_to_column=role_to_column,
+            confirmation_acknowledged=acknowledgement,
+        )
+        validation = validate_mapping(
+            result.dataframe,
+            draft,
+            detection.column_profiles,
+            import_issues,
+        )
+        st.write("**当前验证错误：**")
+        if validation.errors:
+            for error in validation.errors:
+                st.error(error)
+        else:
+            st.success("当前选择没有阻断性错误。")
+        st.write("**当前风险提示：**")
+        if validation.warnings:
+            for warning in validation.warnings:
+                st.warning(warning)
+        else:
+            st.caption("当前没有额外风险提示；确认仍不等于数据协议验证通过。")
+        submitted = st.form_submit_button(
+            "确认字段映射",
+            type="primary",
+            help="仅保存当前会话中的字段引用，不会启动分析。",
+        )
+
+    if submitted:
+        if validation.is_valid:
+            st.session_state[MAPPING_CONFIRMED_KEY] = confirm_mapping(
+                draft,
+                validation,
+            )
+        else:
+            st.error("字段映射存在阻断性错误，尚未建立确认状态。")
+
+    confirmed = st.session_state.get(MAPPING_CONFIRMED_KEY)
+    if isinstance(confirmed, ConfirmedMapping) and is_confirmed_mapping_current(
+        confirmed,
+        source_key,
+    ):
+        _render_confirmed_mapping_summary(confirmed, detection)
+    else:
+        st.info(FIELD_SUGGESTION_BOUNDARY)
 
 
 def _render_diagnostics(diagnostics: object) -> None:
