@@ -101,6 +101,7 @@ def test_runtime_and_development_requirements_are_separated() -> None:
         "streamlit==1.60.0",
         "pandas==3.0.5",
         "plotly==6.9.0",
+        "openpyxl==3.1.5",
     }
     assert "-r requirements.txt" in development_lines
     assert "pytest==9.1.1" in development_lines

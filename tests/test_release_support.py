@@ -12,6 +12,7 @@ from src.comparison import (
 from src.config import (
     APP_VERSION,
     COMPARISON_FILE_MAX_MB,
+    MAX_COLUMNS_PER_FILE,
     MAX_COMPARISON_FILES,
     MAX_ROWS_PER_FILE,
     SINGLE_FILE_MAX_MB,
@@ -42,6 +43,7 @@ def test_release_candidate_config_values_are_valid() -> None:
     assert SINGLE_FILE_MAX_MB > 0
     assert COMPARISON_FILE_MAX_MB > 0
     assert isinstance(MAX_ROWS_PER_FILE, int) and MAX_ROWS_PER_FILE > 0
+    assert MAX_COLUMNS_PER_FILE == 500
     assert MAX_COMPARISON_FILES == 6
 
 
