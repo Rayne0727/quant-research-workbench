@@ -8,8 +8,17 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.adapters import WeeklyNavValidationError, load_weekly_nav_csv
-from src.config import MAX_ROWS_PER_FILE, SINGLE_FILE_MAX_MB
+from src.config import MAX_COLUMNS_PER_FILE, MAX_ROWS_PER_FILE, SINGLE_FILE_MAX_MB
 from src.data_loader import DataValidationError, load_returns_csv
+from src.file_import import (
+    CSV_DELIMITER_DISPLAY,
+    CSV_DELIMITER_LABELS,
+    FileImportError,
+    ImportedTable,
+    get_xlsx_sheet_names,
+    import_table,
+    read_uploaded_bytes,
+)
 from src.limits import UploadLimitError
 from src.performance import (
     PerformanceCalculationError,
@@ -43,7 +52,12 @@ def render_single_page() -> None:
     """渲染单实验页面，并统一处理预期及未预期异常。"""
     try:
         _render_single_page()
-    except (DataValidationError, WeeklyNavValidationError, UploadLimitError) as exc:
+    except (
+        DataValidationError,
+        WeeklyNavValidationError,
+        FileImportError,
+        UploadLimitError,
+    ) as exc:
         st.error(str(exc))
     except PerformanceCalculationError as exc:
         st.error(f"绩效计算失败：{exc}")
@@ -63,20 +77,32 @@ def _render_single_page() -> None:
     st.markdown("### 1. 选择数据来源")
     st.caption(
         f"上传限制：单文件最大 {SINGLE_FILE_MAX_MB} MB，"
-        f"每份 CSV 最多 {MAX_ROWS_PER_FILE} 行。"
+        f"每份表格最多 {MAX_ROWS_PER_FILE} 行、"
+        f"{MAX_COLUMNS_PER_FILE} 列。"
     )
     data_mode = st.radio(
         "选择数据来源",
-        options=("使用示例数据", "上传 CSV 文件"),
+        options=(
+            "使用示例数据",
+            "按现有标准协议上传",
+            "通用文件导入（CSV/XLSX）",
+        ),
         horizontal=True,
         key="single_data_mode",
-        help="先用固定示例熟悉页面，或上传一份自己的受支持 CSV。",
+        help=(
+            "标准协议路径会直接分析已符合协议的 CSV；"
+            "通用导入只读取 CSV/XLSX 并预览，不计算绩效。"
+        ),
     )
+
+    if data_mode == "通用文件导入（CSV/XLSX）":
+        _render_general_file_import()
+        return
 
     st.markdown("### 2. 选择数据格式")
     selected_format = STANDARD_RETURN_FORMAT
     uploaded_file = None
-    if data_mode == "上传 CSV 文件":
+    if data_mode == "按现有标准协议上传":
         selected_format = st.radio(
             "选择数据格式",
             options=(STANDARD_RETURN_FORMAT, WEEKLY_NAV_FORMAT),
@@ -100,7 +126,7 @@ def _render_single_page() -> None:
         st.caption("当前绩效以 nav_strat 推导结果为准。")
 
     st.markdown("### 3. 上传与字段说明")
-    if data_mode == "上传 CSV 文件":
+    if data_mode == "按现有标准协议上传":
         uploaded_file = st.file_uploader(
             "上传 1 份 CSV 文件",
             type=("csv",),
@@ -138,7 +164,7 @@ def _render_single_page() -> None:
         type="secondary",
     )
 
-    if data_mode == "上传 CSV 文件" and uploaded_file is None:
+    if data_mode == "按现有标准协议上传" and uploaded_file is None:
         st.info("请上传一份符合字段协议的 CSV 文件后开始分析。")
         return
 
@@ -341,6 +367,128 @@ def _render_single_page() -> None:
         st.caption(f"字段：{', '.join(cleaned_data.columns)}")
         st.caption(f"记录数量：{len(cleaned_data)}")
         st.dataframe(cleaned_data.head(20), width="stretch")
+
+
+def _render_general_file_import() -> None:
+    """读取通用 CSV/XLSX 并展示原始预览，不进入业务分析。"""
+    st.info(
+        "此入口只负责文件读取和原始预览。"
+        "它不会猜测字段，也不会进入现有绩效分析流程。"
+    )
+
+    st.markdown("### 2. 上传文件")
+    uploaded_file = st.file_uploader(
+        "上传 1 份 CSV 或 XLSX 文件",
+        type=("csv", "xlsx"),
+        key="general_import_file",
+        help=(
+            f"仅接受 .csv 和 .xlsx；文件最大 {SINGLE_FILE_MAX_MB} MB。"
+            "暂不支持 .xls、.xlsm、.ods、ZIP、Parquet 或 JSON。"
+        ),
+        max_upload_size=SINGLE_FILE_MAX_MB,
+    )
+    if uploaded_file is None:
+        st.caption(
+            "请选择 CSV 或 XLSX 文件。上传后将先确认解析设置，"
+            "再显示字段和前 20 行原始预览。"
+        )
+        st.warning(
+            "文件尚未读取。当前尚未进行字段映射或绩效计算。"
+        )
+        return
+
+    file_name, content = read_uploaded_bytes(uploaded_file)
+    extension = Path(file_name).suffix.lower()
+
+    st.markdown("### 3. 文件解析设置")
+    if extension == ".csv":
+        delimiter_label = st.selectbox(
+            "CSV 分隔符",
+            options=tuple(CSV_DELIMITER_LABELS),
+            key="general_csv_delimiter",
+            help=(
+                "自动识别仅会在逗号、制表符、分号和竖线中选择；"
+                "如果结果不符，请手动指定。"
+            ),
+        )
+        result = import_table(
+            file_name,
+            content,
+            delimiter=CSV_DELIMITER_LABELS[delimiter_label],
+        )
+        st.write(f"**当前编码：** `{result.encoding}`")
+        st.write(
+            "**当前分隔符：** "
+            f"{CSV_DELIMITER_DISPLAY.get(result.delimiter or '', result.delimiter)}"
+        )
+    else:
+        sheet_names = get_xlsx_sheet_names(file_name, content)
+        if len(sheet_names) == 1:
+            selected_sheet = sheet_names[0]
+            st.write(f"**当前工作表：** {selected_sheet}（唯一工作表，已自动选择）")
+        else:
+            selected_sheet = st.selectbox(
+                "选择 Excel 工作表",
+                options=sheet_names,
+                index=None,
+                placeholder="请选择一个工作表",
+                key="general_xlsx_sheet",
+                help="必须明确选择一个工作表；系统不会合并或猜测工作表。",
+            )
+            if selected_sheet is None:
+                st.info("该 XLSX 包含多个工作表，请明确选择后再读取预览。")
+                return
+        result = import_table(file_name, content, sheet_name=selected_sheet)
+
+    _render_import_result(result)
+
+
+def _render_import_result(result: ImportedTable) -> None:
+    """展示通用读取结果，不修改或删除任何数据。"""
+    st.markdown("### 4. 文件基础信息")
+    info_columns = st.columns(2)
+    info_columns[0].write(f"**文件名：** {result.file_name}")
+    info_columns[0].write(f"**文件类型：** {result.file_type}")
+    info_columns[0].write(
+        f"**文件大小：** {result.file_size_bytes / 1024:.2f} KB"
+    )
+    info_columns[1].write(f"**数据行数：** {result.row_count}")
+    info_columns[1].write(f"**数据列数：** {result.column_count}")
+    if result.file_type == "XLSX":
+        info_columns[0].write(f"**当前工作表：** {result.sheet_name}")
+        info_columns[1].write(f"**工作表数量：** {result.sheet_count}")
+
+    st.markdown("### 5. 字段检查")
+    st.caption("当前版本默认第一行为字段名；表头行选择将在后续版本完善。")
+    original_headers = (
+        f"{index}. {name if name else '（空字段名）'}"
+        for index, name in enumerate(result.original_column_names, start=1)
+    )
+    st.write("**原始首行字段名称：**")
+    st.code("\n".join(original_headers), language=None)
+    st.write("**读取库展示的字段名称：**")
+    st.code("\n".join(result.column_names), language=None)
+    st.write(f"**重复字段名数量：** {len(result.duplicate_column_names)}")
+    st.write(f"**完全为空的字段数量：** {len(result.fully_empty_columns)}")
+    if result.warnings:
+        for warning in result.warnings:
+            st.warning(warning)
+    else:
+        st.success("未发现重复、空字段名、全空列或混合类型等基础问题。")
+
+    st.markdown("### 6. 原始数据预览")
+    st.caption("仅显示前 20 行；读取结果中保留完整数据，未截断、抽样或删列。")
+    st.dataframe(result.dataframe.head(20), width="stretch")
+
+    st.markdown("### 7. 下一阶段说明")
+    st.success(
+        "文件已成功读取。下一阶段将进行字段识别与映射；"
+        "当前尚未使用这些数据计算绩效。"
+    )
+    st.info(
+        "文件读取完成，但尚未建立业务字段映射，"
+        "因此当前不会计算收益、净值、回撤或其他绩效指标。"
+    )
 
 
 def _render_diagnostics(diagnostics: object) -> None:

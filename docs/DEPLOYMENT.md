@@ -33,7 +33,7 @@ Streamlit Community Cloud 从 GitHub 仓库读取应用代码、入口文件和�
 7. 保持 Secrets 为空；当前项目不需要账号、API Key 或数据库凭证。
 8. 开始构建，并在平台界面查看依赖安装和应用启动日志。
 
-`requirements.txt` 只列出应用运行所需的直接依赖。云端构建会根据它安装 Streamlit、pandas 和 Plotly；`requirements-dev.txt` 用于本地及 CI 测试，不是应用启动前提。
+`requirements.txt` 只列出应用运行所需的直接依赖。云端构建会根据它安装 Streamlit、pandas、Plotly 和用于 XLSX 读取的 openpyxl；`requirements-dev.txt` 用于本地及 CI 测试，不是应用启动前提。
 
 ## 4. 凭证与日志
 

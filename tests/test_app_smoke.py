@@ -1,9 +1,11 @@
 """Streamlit 公共导航与示例流程烟雾测试。"""
 
 import json
+from io import BytesIO
 from pathlib import Path
 import tomllib
 
+from openpyxl import Workbook
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -45,6 +47,21 @@ def _visible_text(app: AppTest) -> str:
     for element_type in element_types:
         values.extend(str(element.value) for element in app.get(element_type))
     return "\n".join(values)
+
+
+def _multisheet_xlsx() -> bytes:
+    """在内存中生成用于 AppTest 的两工作表 XLSX。"""
+    workbook = Workbook()
+    first_sheet = workbook.active
+    first_sheet.title = "说明"
+    first_sheet.append(["text"])
+    first_sheet.append(["demo"])
+    data_sheet = workbook.create_sheet("数据")
+    data_sheet.append(["日期", "收益"])
+    data_sheet.append(["2026-01-01", 0.01])
+    output = BytesIO()
+    workbook.save(output)
+    return output.getvalue()
 
 
 def test_home_page_is_default_and_has_no_analysis_charts() -> None:
@@ -107,6 +124,96 @@ def test_can_enter_single_analysis_and_sample_still_renders() -> None:
     assert app.radio(key="single_data_mode").value == "使用示例数据"
     assert len(app.get("plotly_chart")) == 2
     assert "下载标准日频收益 CSV 模板" in _download_labels(app)
+
+
+def test_single_page_exposes_strict_and_general_import_paths() -> None:
+    app = _open_page(_load_app(), "单实验分析")
+    data_mode = app.radio(key="single_data_mode")
+
+    assert data_mode.options == [
+        "使用示例数据",
+        "按现有标准协议上传",
+        "通用文件导入（CSV/XLSX）",
+    ]
+
+
+def test_general_import_waiting_state_does_not_render_performance_results() -> None:
+    app = _open_page(_load_app(), "单实验分析")
+    app.radio(key="single_data_mode").set_value(
+        "通用文件导入（CSV/XLSX）"
+    ).run()
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    assert "上传 1 份 CSV 或 XLSX 文件" in [
+        uploader.label for uploader in app.get("file_uploader")
+    ]
+    assert "当前尚未进行字段映射或绩效计算" in page_text
+    assert len(app.get("metric")) == 0
+    assert len(app.get("plotly_chart")) == 0
+    assert len(app.get("download_button")) == 0
+
+
+def test_general_csv_upload_renders_preview_without_performance() -> None:
+    app = _open_page(_load_app(), "单实验分析")
+    app.radio(key="single_data_mode").set_value(
+        "通用文件导入（CSV/XLSX）"
+    ).run()
+    app.get("file_uploader")[0].upload(
+        "preview.csv",
+        "日期;收益\n2026-01-01;0.01\n".encode(),
+        "text/csv",
+    ).run()
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    assert "当前编码：" in page_text
+    assert "当前分隔符：" in page_text
+    assert any("文件已成功读取" in item.value for item in app.success)
+    assert len(app.dataframe) == 1
+    assert len(app.get("metric")) == 0
+    assert len(app.get("plotly_chart")) == 0
+    assert len(app.get("download_button")) == 0
+
+
+def test_general_xlsx_upload_can_switch_selected_sheet() -> None:
+    app = _open_page(_load_app(), "单实验分析")
+    app.radio(key="single_data_mode").set_value(
+        "通用文件导入（CSV/XLSX）"
+    ).run()
+    app.get("file_uploader")[0].upload(
+        "preview.xlsx",
+        _multisheet_xlsx(),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ).run()
+
+    assert not app.exception
+    assert app.selectbox(key="general_xlsx_sheet").options == ["说明", "数据"]
+    assert app.selectbox(key="general_xlsx_sheet").value is None
+    assert len(app.dataframe) == 0
+
+    app.selectbox(key="general_xlsx_sheet").set_value("数据").run()
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    assert "当前工作表：** 数据" in page_text
+    assert "工作表数量：** 2" in page_text
+    assert len(app.dataframe) == 1
+    assert len(app.get("plotly_chart")) == 0
+
+
+def test_existing_strict_protocol_upload_path_remains_available() -> None:
+    app = _open_page(_load_app(), "单实验分析")
+    app.radio(key="single_data_mode").set_value("按现有标准协议上传").run()
+
+    assert not app.exception
+    assert app.radio(key="single_data_format").options == [
+        "标准日频收益 CSV",
+        "每周调仓净值 CSV",
+    ]
+    assert "上传 1 份 CSV 文件" in [
+        uploader.label for uploader in app.get("file_uploader")
+    ]
 
 
 def test_optional_experiment_information_is_collapsed_and_usable() -> None:
