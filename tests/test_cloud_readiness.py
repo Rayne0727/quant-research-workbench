@@ -39,6 +39,9 @@ def test_example_mode_does_not_depend_on_raw_data_or_batch_scripts() -> None:
     assert "data\\raw" not in application_text
     assert ".bat" not in application_text
     assert not app.exception
+    assert app.radio(key="app_navigation").value == "首页"
+    app.radio(key="app_navigation").set_value("单实验分析").run()
+    assert not app.exception
     assert len(app.get("plotly_chart")) == 2
 
 
@@ -55,13 +58,27 @@ def test_template_generation_does_not_depend_on_working_directory(
 
 def test_page_privacy_notice_distinguishes_local_and_cloud_processing() -> None:
     app = AppTest.from_file(str(PROJECT_ROOT / "app.py"), default_timeout=20).run()
-    captions = "\n".join(item.value for item in app.caption)
+    page_text = "\n".join(
+        str(item.value)
+        for element_type in ("caption", "info", "markdown", "warning")
+        for item in app.get(element_type)
+    )
 
-    assert "本地运行时" in captions
-    assert "当前本地应用进程" in captions
-    assert "部署到云端后" in captions
-    assert "云端应用进程" in captions
-    assert "请勿上传敏感信息" in captions
+    assert "本地运行时" in page_text
+    assert "当前电脑的应用进程" in page_text
+    assert "公开云端版本" in page_text
+    assert "云端应用进程" in page_text
+    sensitive_warning_terms = (
+        "请勿上传",
+        "账号密码",
+        "API密钥",
+        "交易凭证",
+        "个人敏感信息",
+        "商业机密",
+        "受限制数据",
+    )
+    for term in sensitive_warning_terms:
+        assert term in page_text
 
 
 def test_runtime_and_development_requirements_are_separated() -> None:

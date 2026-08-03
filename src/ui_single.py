@@ -27,6 +27,7 @@ from src.reporting import (
     make_standardized_data_filename,
 )
 from src.templates import generate_daily_returns_template_csv
+from src.ui_common import render_page_header
 
 
 LOGGER = logging.getLogger(__name__)
@@ -53,9 +54,13 @@ def render_single_page() -> None:
 
 def _render_single_page() -> None:
     """组织单实验输入、指标、图表、摘要和导出。"""
-    st.info("当前为单实验分析；系统不会自动猜测或切换文件格式。")
+    render_page_header(
+        "单实验分析",
+        "上传一份受支持的策略结果，完成字段检查、绩效分析、图表展示与标准化导出。",
+        "分析工作台",
+    )
 
-    st.markdown("### 1. 数据输入")
+    st.markdown("### 1. 选择数据来源")
     st.caption(
         f"上传限制：单文件最大 {SINGLE_FILE_MAX_MB} MB，"
         f"每份 CSV 最多 {MAX_ROWS_PER_FILE} 行。"
@@ -65,8 +70,10 @@ def _render_single_page() -> None:
         options=("使用示例数据", "上传 CSV 文件"),
         horizontal=True,
         key="single_data_mode",
+        help="先用固定示例熟悉页面，或上传一份自己的受支持 CSV。",
     )
 
+    st.markdown("### 2. 选择数据格式")
     selected_format = STANDARD_RETURN_FORMAT
     uploaded_file = None
     if data_mode == "上传 CSV 文件":
@@ -75,24 +82,35 @@ def _render_single_page() -> None:
             options=(STANDARD_RETURN_FORMAT, WEEKLY_NAV_FORMAT),
             horizontal=True,
             key="single_data_format",
-        )
-        uploaded_file = st.file_uploader(
-            "选择 CSV 文件", type=("csv",), key="single_uploaded_file"
+            help="请按文件真实字段选择；系统不会自动识别或切换格式。",
         )
         current_mode = "用户上传数据模式"
     else:
+        st.write("固定示例采用 **标准日频收益 CSV** 格式。")
         current_mode = "示例数据模式"
 
     primary_field = (
         "nav_strat" if selected_format == WEEKLY_NAV_FORMAT else "strategy_return"
     )
-    st.caption(f"当前数据模式：{current_mode}")
-    st.caption(f"当前选择的数据格式：{selected_format}")
-    st.caption(f"当前实际用于计算绩效的主字段：{primary_field}")
+    st.info(
+        f"当前数据模式：{current_mode}  ·  当前格式：{selected_format}  ·  "
+        f"计算主字段：{primary_field}"
+    )
     if selected_format == WEEKLY_NAV_FORMAT:
-        st.info("当前绩效以 nav_strat 推导结果为准。")
+        st.caption("当前绩效以 nav_strat 推导结果为准。")
 
-    st.markdown("### 2. 数据说明")
+    st.markdown("### 3. 上传与字段说明")
+    if data_mode == "上传 CSV 文件":
+        uploaded_file = st.file_uploader(
+            "上传 1 份 CSV 文件",
+            type=("csv",),
+            key="single_uploaded_file",
+            help=(
+                f"仅接受 CSV；文件最大 {SINGLE_FILE_MAX_MB} MB、"
+                f"最多 {MAX_ROWS_PER_FILE} 行。"
+            ),
+            max_upload_size=SINGLE_FILE_MAX_MB,
+        )
     if selected_format == STANDARD_RETURN_FORMAT:
         st.markdown(
             "必需字段：`date`、`strategy_return`；可选字段：`benchmark_return`。  "
@@ -110,11 +128,14 @@ def _render_single_page() -> None:
         "模板数据仅用于格式演示，不代表真实策略结果。"
     )
     st.download_button(
-        "下载标准日频收益CSV模板",
+        "下载标准日频收益 CSV 模板",
         data=generate_daily_returns_template_csv(),
         file_name="daily_returns_template.csv",
         mime="text/csv; charset=utf-8",
         key="daily_returns_template_download",
+        help="下载只演示字段名称和收益率小数格式的示例模板。",
+        icon=":material/download:",
+        type="secondary",
     )
 
     if data_mode == "上传 CSV 文件" and uploaded_file is None:
@@ -140,6 +161,16 @@ def _render_single_page() -> None:
         cleaned_data = load_returns_csv(data_source)
         performance_data = add_performance_series(cleaned_data)
         metrics = calculate_performance_metrics(cleaned_data)
+
+    st.markdown("### 4. 数据检查结果")
+    st.success("字段、日期、数值和样本数量检查通过，可以继续分析。")
+    check_columns = st.columns(3)
+    check_columns[0].metric("数据记录数", str(len(cleaned_data)))
+    check_columns[1].write(f"**数据模式**  \n{current_mode}")
+    check_columns[2].write(f"**计算主字段**  \n`{primary_field}`")
+
+    if diagnostics is not None:
+        _render_diagnostics(diagnostics)
 
     default_experiment_name = (
         "示例日频收益实验"
@@ -171,7 +202,7 @@ def _render_single_page() -> None:
             key=f"research_notes:{input_identity}",
         )
 
-    st.markdown("### 3. 核心指标")
+    st.markdown("### 5. 核心指标")
     metric_row_one = st.columns(4)
     metric_row_one[0].metric(
         "累计收益", _format_percentage(metrics["cumulative_return"])
@@ -215,10 +246,7 @@ def _render_single_page() -> None:
             "对短期表现较敏感，仅供参考。"
         )
 
-    if diagnostics is not None:
-        _render_diagnostics(diagnostics)
-
-    st.markdown("### 4. 图表")
+    st.markdown("### 6. 图表")
     nav_figure = go.Figure()
     nav_figure.add_trace(
         go.Scatter(
@@ -284,25 +312,31 @@ def _render_single_page() -> None:
     markdown_report = generate_markdown_report(report_context)
     standardized_csv = generate_standardized_csv(performance_data)
 
-    st.markdown("### 6. 分析摘要")
+    st.markdown("### 7. 分析摘要")
     st.markdown(analysis_summary)
 
-    st.markdown("### 7. 结果导出")
+    st.markdown("### 8. 结果导出")
+    st.caption("下载内容在内存中生成，不会由应用主动写入 data 目录。")
     download_columns = st.columns(2)
     download_columns[0].download_button(
         "下载分析报告",
         data=markdown_report.encode("utf-8"),
         file_name=make_report_filename(experiment_name),
         mime="text/markdown; charset=utf-8",
+        help="下载包含实验信息、指标、诊断与固定声明的 Markdown 报告。",
+        icon=":material/download:",
+        type="primary",
     )
     download_columns[1].download_button(
         "下载标准化分析数据",
         data=standardized_csv,
         file_name=make_standardized_data_filename(experiment_name),
         mime="text/csv; charset=utf-8",
+        help="下载可用于多实验比较的标准化分析 CSV。",
+        icon=":material/download:",
     )
 
-    st.markdown("### 8. 数据预览")
+    st.markdown("### 9. 数据预览")
     with st.expander("查看清洗后的数据（前 20 行）"):
         st.caption(f"字段：{', '.join(cleaned_data.columns)}")
         st.caption(f"记录数量：{len(cleaned_data)}")
