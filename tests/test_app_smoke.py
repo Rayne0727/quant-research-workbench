@@ -1,5 +1,6 @@
 """Streamlit 公共导航与示例流程烟雾测试。"""
 
+import json
 from pathlib import Path
 import tomllib
 
@@ -7,7 +8,22 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from src.config import APP_NAME, APP_VERSION
-from src.ui_common import PUBLIC_PRIVACY_NOTICE, RESEARCH_DISCLAIMER
+from src.ui_common import (
+    PUBLIC_PRIVACY_NOTICE,
+    RESEARCH_DISCLAIMER,
+    SIDEBAR_PRIVACY_NOTICE,
+)
+
+
+SENSITIVE_WARNING_TERMS = (
+    "请勿上传",
+    "账号密码",
+    "API密钥",
+    "交易凭证",
+    "个人敏感信息",
+    "商业机密",
+    "受限制数据",
+)
 
 
 def _load_app() -> AppTest:
@@ -93,6 +109,26 @@ def test_can_enter_single_analysis_and_sample_still_renders() -> None:
     assert "下载标准日频收益 CSV 模板" in _download_labels(app)
 
 
+def test_optional_experiment_information_is_collapsed_and_usable() -> None:
+    app = _open_page(_load_app(), "单实验分析")
+    experiment_expander = next(
+        item for item in app.expander if item.label == "实验信息（可选）"
+    )
+
+    assert experiment_expander.proto.expanded is False
+    assert app.text_input(key="experiment_name:sample").value == "示例日频收益实验"
+
+    app.text_input(key="experiment_name:sample").set_value("折叠区域实验")
+    app.text_input(key="strategy_name:sample").set_value("示例策略")
+    app.text_area(key="research_notes:sample").set_value("表单仍可正常填写。")
+    app.run()
+
+    assert not app.exception
+    assert app.text_input(key="experiment_name:sample").value == "折叠区域实验"
+    assert app.text_input(key="strategy_name:sample").value == "示例策略"
+    assert app.text_area(key="research_notes:sample").value == "表单仍可正常填写。"
+
+
 def test_can_enter_comparison_and_sample_still_renders() -> None:
     app = _open_page(_load_app(), "多实验比较")
 
@@ -101,6 +137,14 @@ def test_can_enter_comparison_and_sample_still_renders() -> None:
     assert app.radio(key="comparison_source_mode").value == "使用比较示例数据"
     assert len(app.get("plotly_chart")) == 2
     assert "下载标准化比较 CSV 模板" in _download_labels(app)
+
+
+def test_comparison_drawdown_axis_uses_two_decimal_percentage() -> None:
+    app = _open_page(_load_app(), "多实验比较")
+    drawdown_spec = json.loads(app.get("plotly_chart")[1].proto.spec)
+
+    assert not app.exception
+    assert drawdown_spec["layout"]["yaxis"]["tickformat"] == ".2%"
 
 
 def test_can_enter_usage_guide() -> None:
@@ -120,6 +164,56 @@ def test_page_displays_version_privacy_notice_and_disclaimer() -> None:
     assert APP_VERSION in page_text
     assert PUBLIC_PRIVACY_NOTICE in page_text
     assert RESEARCH_DISCLAIMER in page_text
+
+
+def test_sidebar_uses_concise_privacy_notice() -> None:
+    app = _load_app()
+    sidebar_warnings = [warning.value for warning in app.sidebar.warning]
+
+    assert sidebar_warnings == [SIDEBAR_PRIVACY_NOTICE]
+    assert "云端应用进程" in SIDEBAR_PRIVACY_NOTICE
+    assert "敏感或受限制数据" in SIDEBAR_PRIVACY_NOTICE
+    assert "账号密码" not in SIDEBAR_PRIVACY_NOTICE
+
+
+@pytest.mark.parametrize("page_name", ("首页", "使用说明"))
+def test_main_privacy_pages_keep_complete_sensitive_data_warning(
+    page_name: str,
+) -> None:
+    app = _load_app()
+    if page_name != "首页":
+        _open_page(app, page_name)
+    main_text = _visible_text(app.main)
+
+    assert PUBLIC_PRIVACY_NOTICE in main_text
+    for term in SENSITIVE_WARNING_TERMS:
+        assert term in main_text
+
+
+@pytest.mark.parametrize(
+    "page_name",
+    ("首页", "单实验分析", "多实验比较", "使用说明"),
+)
+def test_all_pages_display_version_from_shared_config(page_name: str) -> None:
+    app = _load_app()
+    if page_name != "首页":
+        _open_page(app, page_name)
+
+    assert f"v{APP_VERSION}" in _visible_text(app)
+
+
+def test_ui_modules_do_not_hardcode_release_version() -> None:
+    ui_paths = (
+        Path("app.py"),
+        Path("src/ui_common.py"),
+        Path("src/ui_single.py"),
+        Path("src/ui_comparison.py"),
+    )
+
+    assert all(
+        "0.1.0-rc1" not in path.read_text(encoding="utf-8")
+        for path in ui_paths
+    )
 
 
 @pytest.mark.parametrize(

@@ -182,7 +182,7 @@ def _render_single_page() -> None:
         if data_mode == "使用示例数据"
         else f"{selected_format}:{uploaded_file.name}"
     )
-    with st.expander("实验信息（可选）"):
+    with st.expander("实验信息（可选）", expanded=False):
         experiment_name = st.text_input(
             "实验名称",
             value=default_experiment_name,

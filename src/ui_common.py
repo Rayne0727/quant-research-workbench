@@ -9,6 +9,10 @@ PUBLIC_PRIVACY_NOTICE = (
     "公开云端版本会在云端应用进程中处理上传文件。请勿上传账号密码、"
     "API密钥、交易凭证、个人敏感信息、商业机密或其他受限制数据。"
 )
+SIDEBAR_PRIVACY_NOTICE = (
+    "公开云端版本会在云端应用进程中处理上传文件。"
+    "请勿上传敏感或受限制数据。"
+)
 RESEARCH_DISCLAIMER = "本工具用于研究记录和结果核验，不构成投资建议。"
 
 
@@ -64,7 +68,7 @@ def render_sidebar_context() -> None:
         unsafe_allow_html=True,
     )
     st.sidebar.divider()
-    st.sidebar.warning(PUBLIC_PRIVACY_NOTICE)
+    st.sidebar.warning(SIDEBAR_PRIVACY_NOTICE)
     st.sidebar.caption(RESEARCH_DISCLAIMER)
 
 
