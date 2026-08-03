@@ -475,6 +475,8 @@ def test_comparison_sample_data_is_fixed_and_has_long_common_period() -> None:
     )
 
     assert first_result.common_nav_observations >= 120
+    assert first_result.metrics_table["cumulative_return"].nunique() == 3
+    assert (first_result.metrics_table["max_drawdown"] < 0).all()
     pd.testing.assert_frame_equal(
         first_result.aligned_nav_table,
         second_result.aligned_nav_table,

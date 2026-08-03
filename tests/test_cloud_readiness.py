@@ -61,7 +61,7 @@ def test_page_privacy_notice_distinguishes_local_and_cloud_processing() -> None:
     page_text = "\n".join(
         str(item.value)
         for element_type in ("caption", "info", "markdown", "warning")
-        for item in app.get(element_type)
+        for item in app.main.get(element_type)
     )
 
     assert "本地运行时" in page_text

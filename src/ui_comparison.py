@@ -259,7 +259,7 @@ def _render_charts(result: ComparisonResult) -> None:
         yaxis_title="回撤",
         hovermode="x unified",
     )
-    drawdown_figure.update_yaxes(tickformat=".1%")
+    drawdown_figure.update_yaxes(tickformat=".2%")
     st.plotly_chart(drawdown_figure, width="stretch")
 
 
