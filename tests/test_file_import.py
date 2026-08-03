@@ -280,8 +280,14 @@ def test_import_does_not_modify_input_bytes() -> None:
     assert content == original
 
 
-def test_uploaded_name_is_sanitized_without_local_path_dependency() -> None:
-    upload = _NamedUpload(b"a,b\n1,2\n", r"C:\private\folder\table.csv")
+@pytest.mark.parametrize(
+    "uploaded_name",
+    (r"C:\private\folder\table.csv", "/private/folder/table.csv"),
+)
+def test_uploaded_name_is_sanitized_without_local_path_dependency(
+    uploaded_name: str,
+) -> None:
+    upload = _NamedUpload(b"a,b\n1,2\n", uploaded_name)
 
     file_name, content = read_uploaded_bytes(upload)
     result = import_table(file_name, content)

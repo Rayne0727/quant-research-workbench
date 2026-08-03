@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from io import BytesIO, StringIO
 from numbers import Number
-from pathlib import Path
+from pathlib import PureWindowsPath
 from typing import BinaryIO
 
 import pandas as pd
@@ -75,7 +75,9 @@ class ImportedTable:
 
 def read_uploaded_bytes(source: BinaryIO) -> tuple[str, bytes]:
     """在读取前检查上传大小，并返回不含本地路径的文件名和字节。"""
-    filename = get_source_filename(source, fallback="上传文件")
+    filename = _safe_filename(
+        get_source_filename(source, fallback="上传文件")
+    )
     _validate_extension(filename)
     validate_file_size(source, filename, SINGLE_FILE_MAX_MB)
 
@@ -93,7 +95,7 @@ def read_uploaded_bytes(source: BinaryIO) -> tuple[str, bytes]:
 
     if not content:
         raise FileImportError("上传文件为空，请选择包含表头和数据的文件。")
-    return Path(filename).name, content
+    return filename, content
 
 
 def get_xlsx_sheet_names(file_name: str, content: bytes) -> tuple[str, ...]:
@@ -125,7 +127,7 @@ def import_table(
 ) -> ImportedTable:
     """读取 CSV 或指定 XLSX 工作表，返回统一预览结果。"""
     safe_name = _prepare_content(file_name, content)
-    extension = Path(safe_name).suffix.lower()
+    extension = PureWindowsPath(safe_name).suffix.lower()
     if extension == ".csv":
         return _import_csv(safe_name, content, delimiter)
     return _import_xlsx(safe_name, content, sheet_name)
@@ -137,7 +139,7 @@ def _prepare_content(
     expected_extension: str | None = None,
 ) -> str:
     """验证扩展名、空内容和解析前文件大小。"""
-    safe_name = Path(file_name).name or "上传文件"
+    safe_name = _safe_filename(file_name)
     extension = _validate_extension(safe_name)
     if expected_extension is not None and extension != expected_extension:
         raise FileImportError(f"{safe_name}：当前操作仅支持XLSX文件。")
@@ -151,13 +153,19 @@ def _prepare_content(
 
 def _validate_extension(file_name: str) -> str:
     """只允许 CSV 和 XLSX，拒绝其他相近或压缩格式。"""
-    extension = Path(file_name).suffix.lower()
+    safe_name = _safe_filename(file_name)
+    extension = PureWindowsPath(safe_name).suffix.lower()
     if extension not in SUPPORTED_EXTENSIONS:
         raise FileImportError(
-            f"{Path(file_name).name or '上传文件'}：不支持的文件类型。"
+            f"{safe_name}：不支持的文件类型。"
             "当前通用导入仅支持CSV和XLSX。"
         )
     return extension
+
+
+def _safe_filename(file_name: str) -> str:
+    """同时剥离 Windows 和 POSIX 风格路径，避免在页面显示本地目录。"""
+    return PureWindowsPath(str(file_name)).name or "上传文件"
 
 
 def _import_csv(
