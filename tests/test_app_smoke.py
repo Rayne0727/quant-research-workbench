@@ -170,7 +170,17 @@ def test_general_csv_upload_renders_preview_without_performance() -> None:
     assert "当前编码：" in page_text
     assert "当前分隔符：" in page_text
     assert any("文件已成功读取" in item.value for item in app.success)
-    assert len(app.dataframe) == 1
+    assert "字段识别建议" in page_text
+    assert (
+        "字段识别结果仅为确定性规则生成的建议。"
+        "系统尚未建立字段映射，也不会使用当前文件计算绩效。"
+    ) in page_text
+    assert (
+        "当前结果仅用于帮助确认字段。系统尚未建立字段映射，"
+        "不会基于这些建议计算收益、净值、回撤或其他绩效指标。"
+    ) in page_text
+    assert "date（日期）" in app.dataframe[1].value["业务角色"].tolist()
+    assert len(app.dataframe) == 4
     assert len(app.get("metric")) == 0
     assert len(app.get("plotly_chart")) == 0
     assert len(app.get("download_button")) == 0
@@ -198,8 +208,11 @@ def test_general_xlsx_upload_can_switch_selected_sheet() -> None:
     assert not app.exception
     assert "当前工作表：** 数据" in page_text
     assert "工作表数量：** 2" in page_text
-    assert len(app.dataframe) == 1
+    assert "字段识别建议" in page_text
+    assert len(app.dataframe) == 4
+    assert len(app.get("metric")) == 0
     assert len(app.get("plotly_chart")) == 0
+    assert len(app.get("download_button")) == 0
 
 
 def test_existing_strict_protocol_upload_path_remains_available() -> None:
