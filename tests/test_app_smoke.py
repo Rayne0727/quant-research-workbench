@@ -64,6 +64,64 @@ def _multisheet_xlsx() -> bytes:
     return output.getvalue()
 
 
+def _mapping_multisheet_xlsx() -> bytes:
+    """生成两份可分别确认收益率与净值主口径的工作表。"""
+    workbook = Workbook()
+    return_sheet = workbook.active
+    return_sheet.title = "收益表"
+    return_sheet.append(["trade_date", "strategy_return"])
+    return_sheet.append(["2026-01-01", 0.01])
+    return_sheet.append(["2026-01-02", -0.02])
+    return_sheet.append(["2026-01-03", 0.03])
+    return_sheet.append(["2026-01-04", 0.01])
+    nav_sheet = workbook.create_sheet("净值表")
+    nav_sheet.append(["trade_date", "strategy_nav"])
+    nav_sheet.append(["2026-01-01", 1.0])
+    nav_sheet.append(["2026-01-02", 0.98])
+    nav_sheet.append(["2026-01-03", 1.01])
+    nav_sheet.append(["2026-01-04", 1.02])
+    output = BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def _open_general_csv(content: str) -> AppTest:
+    app = _open_page(_load_app(), "单实验分析")
+    app.radio(key="single_data_mode").set_value(
+        "通用文件导入（CSV/XLSX）"
+    ).run()
+    app.get("file_uploader")[0].upload(
+        "mapping.csv",
+        content.encode("utf-8"),
+        "text/csv",
+    ).run()
+    return app
+
+
+def _mapping_basis_selectbox(app: AppTest):
+    return next(
+        selectbox
+        for selectbox in app.selectbox
+        if selectbox.label == "策略分析主口径"
+    )
+
+
+def _mapping_acknowledgement(app: AppTest):
+    return next(
+        checkbox
+        for checkbox in app.checkbox
+        if checkbox.label.startswith("我已核对字段含义")
+    )
+
+
+def _submit_mapping(app: AppTest) -> AppTest:
+    _mapping_acknowledgement(app).set_value(True)
+    next(
+        button for button in app.button if button.label == "确认字段映射"
+    ).click()
+    return app.run()
+
+
 def test_home_page_is_default_and_has_no_analysis_charts() -> None:
     app = _load_app()
 
@@ -148,7 +206,7 @@ def test_general_import_waiting_state_does_not_render_performance_results() -> N
     assert "上传 1 份 CSV 或 XLSX 文件" in [
         uploader.label for uploader in app.get("file_uploader")
     ]
-    assert "当前尚未进行字段映射或绩效计算" in page_text
+    assert "当前尚未进行字段映射确认或绩效计算" in page_text
     assert len(app.get("metric")) == 0
     assert len(app.get("plotly_chart")) == 0
     assert len(app.get("download_button")) == 0
@@ -179,11 +237,146 @@ def test_general_csv_upload_renders_preview_without_performance() -> None:
         "当前结果仅用于帮助确认字段。系统尚未建立字段映射，"
         "不会基于这些建议计算收益、净值、回撤或其他绩效指标。"
     ) in page_text
+    assert "确认字段映射" in page_text
+    assert _mapping_basis_selectbox(app).options == [
+        "请选择",
+        "策略收益率为主",
+        "策略净值为主",
+    ]
+    assert _mapping_acknowledgement(app).value is False
+    assert not any(item.value == "字段映射已确认。" for item in app.success)
     assert "date（日期）" in app.dataframe[1].value["业务角色"].tolist()
     assert len(app.dataframe) == 4
     assert len(app.get("metric")) == 0
     assert len(app.get("plotly_chart")) == 0
     assert len(app.get("download_button")) == 0
+
+
+def test_general_mapping_missing_required_fields_is_blocked() -> None:
+    app = _open_general_csv("value,notes\n1,a\n2,b\n3,c\n")
+
+    next(
+        button for button in app.button if button.label == "确认字段映射"
+    ).click().run()
+
+    assert not app.exception
+    errors = [item.value for item in app.error]
+    assert "请选择策略分析主口径。" in errors
+    assert "必须映射日期字段 date。" in errors
+    assert "字段映射存在阻断性错误，尚未建立确认状态。" in errors
+    assert not any(item.value == "字段映射已确认。" for item in app.success)
+
+
+def test_general_return_mapping_can_be_explicitly_confirmed_without_analysis() -> None:
+    app = _open_general_csv(
+        "trade_date,strategy_return\n"
+        "2026-01-01,0.01\n"
+        "2026-01-02,-0.02\n"
+        "2026-01-03,0.03\n"
+        "2026-01-04,0.01\n"
+    )
+
+    assert _mapping_basis_selectbox(app).value == "策略收益率为主"
+    assert not any(item.value == "字段映射已确认。" for item in app.success)
+
+    _submit_mapping(app)
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    assert any(item.value == "字段映射已确认。" for item in app.success)
+    assert "已确认映射摘要" in page_text
+    assert "尚未执行数据标准化、收益率单位转换、绩效计算" in page_text
+    summary = app.dataframe[-1].value
+    return_row = summary.loc[
+        summary["业务角色"] == "strategy_return（策略收益率）"
+    ].iloc[0]
+    assert return_row["原始字段"] == "strategy_return"
+    assert return_row["是否为主口径字段"] == "是"
+    assert len(app.get("metric")) == 0
+    assert len(app.get("plotly_chart")) == 0
+    assert len(app.get("download_button")) == 0
+
+
+def test_general_nav_mapping_can_be_explicitly_confirmed_without_analysis() -> None:
+    app = _open_general_csv(
+        "trade_date,strategy_nav\n"
+        "2026-01-01,1.00\n"
+        "2026-01-02,0.98\n"
+        "2026-01-03,1.01\n"
+        "2026-01-04,1.02\n"
+    )
+
+    assert _mapping_basis_selectbox(app).value == "策略净值为主"
+    _submit_mapping(app)
+
+    assert not app.exception
+    assert any(item.value == "字段映射已确认。" for item in app.success)
+    summary = app.dataframe[-1].value
+    nav_row = summary.loc[
+        summary["业务角色"] == "strategy_nav（策略净值）"
+    ].iloc[0]
+    assert nav_row["原始字段"] == "strategy_nav"
+    assert nav_row["是否为主口径字段"] == "是"
+    assert len(app.get("metric")) == 0
+    assert len(app.get("plotly_chart")) == 0
+    assert len(app.get("download_button")) == 0
+
+
+def test_switching_xlsx_sheet_invalidates_confirmed_mapping() -> None:
+    app = _open_page(_load_app(), "单实验分析")
+    app.radio(key="single_data_mode").set_value(
+        "通用文件导入（CSV/XLSX）"
+    ).run()
+    app.get("file_uploader")[0].upload(
+        "mapping.xlsx",
+        _mapping_multisheet_xlsx(),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ).run()
+    app.selectbox(key="general_xlsx_sheet").set_value("收益表").run()
+    _submit_mapping(app)
+
+    assert any(item.value == "字段映射已确认。" for item in app.success)
+
+    app.selectbox(key="general_xlsx_sheet").set_value("净值表").run()
+
+    assert not app.exception
+    assert any(
+        item.value == "文件或解析设置已变化，请重新确认字段映射。"
+        for item in app.warning
+    )
+    assert not any(item.value == "字段映射已确认。" for item in app.success)
+    assert _mapping_basis_selectbox(app).value == "策略净值为主"
+
+
+def test_replacing_uploaded_file_invalidates_confirmed_mapping() -> None:
+    app = _open_general_csv(
+        "trade_date,strategy_return\n"
+        "2026-01-01,0.01\n"
+        "2026-01-02,-0.02\n"
+        "2026-01-03,0.03\n"
+        "2026-01-04,0.01\n"
+    )
+    _submit_mapping(app)
+    assert any(item.value == "字段映射已确认。" for item in app.success)
+
+    app.get("file_uploader")[0].upload(
+        "replacement.csv",
+        (
+            "trade_date,strategy_nav\n"
+            "2026-01-01,1.00\n"
+            "2026-01-02,0.98\n"
+            "2026-01-03,1.01\n"
+            "2026-01-04,1.02\n"
+        ).encode("utf-8"),
+        "text/csv",
+    ).run()
+
+    assert not app.exception
+    assert any(
+        item.value == "文件或解析设置已变化，请重新确认字段映射。"
+        for item in app.warning
+    )
+    assert not any(item.value == "字段映射已确认。" for item in app.success)
 
 
 def test_general_xlsx_upload_can_switch_selected_sheet() -> None:
