@@ -55,6 +55,14 @@ from src.reporting import (
     make_report_filename,
     make_standardized_data_filename,
 )
+from src.standardization import (
+    BLOCKING,
+    WARNING,
+    StandardizationResult,
+    build_mapping_key,
+    is_standardization_result_current,
+    standardize_confirmed_mapping,
+)
 from src.templates import generate_daily_returns_template_csv
 from src.ui_common import render_page_header
 
@@ -78,6 +86,14 @@ MAPPING_STATE_PREFIX = "qrw_field_mapping"
 MAPPING_SOURCE_KEY = f"{MAPPING_STATE_PREFIX}:source_key"
 MAPPING_CONFIRMED_KEY = f"{MAPPING_STATE_PREFIX}:confirmed"
 MAPPING_INVALIDATED_KEY = f"{MAPPING_STATE_PREFIX}:invalidation_pending"
+STANDARDIZATION_STATE_PREFIX = "qrw_standardization"
+STANDARDIZATION_RESULT_KEY = f"{STANDARDIZATION_STATE_PREFIX}:result"
+STANDARDIZATION_INVALIDATED_KEY = (
+    f"{STANDARDIZATION_STATE_PREFIX}:invalidation_pending"
+)
+STANDARDIZATION_INVALIDATION_MESSAGE = (
+    "文件、解析设置或字段映射已变化，请重新生成标准化预览。"
+)
 PRIMARY_BASIS_LABELS = {
     "请选择": None,
     "策略收益率为主": PRIMARY_BASIS_RETURN,
@@ -548,10 +564,13 @@ def _render_import_result(result: ImportedTable, content: bytes) -> None:
 
     st.markdown("### 9. 下一阶段说明")
     st.info(
-        "尚未执行数据标准化、收益率单位转换、绩效计算、"
-        "图表生成或结果导出。"
+        "当前仅生成标准化预览并执行数据质量预检，"
+        "尚未进入现有严格分析协议或绩效计算。"
     )
-    st.caption("B.4 才会按照已确认映射执行标准化和严格数据验证。")
+    st.caption(
+        "B.4B 才会把通过预检的候选结构接入现有严格协议；"
+        "当前不会生成绩效、图表、报告或下载结果。"
+    )
 
 
 def _candidate_rows(
@@ -688,6 +707,24 @@ def _clear_mapping_session_state() -> None:
             st.session_state.pop(key, None)
     if had_confirmed_mapping:
         st.session_state[MAPPING_INVALIDATED_KEY] = True
+    _invalidate_standardization_preview()
+
+
+def _invalidate_standardization_preview() -> bool:
+    """清除会话内旧预览，并保留一次明确的失效提示。"""
+    had_result = isinstance(
+        st.session_state.get(STANDARDIZATION_RESULT_KEY),
+        StandardizationResult,
+    )
+    for key in tuple(st.session_state):
+        if (
+            key.startswith(STANDARDIZATION_STATE_PREFIX)
+            and key != STANDARDIZATION_INVALIDATED_KEY
+        ):
+            st.session_state.pop(key, None)
+    if had_result:
+        st.session_state[STANDARDIZATION_INVALIDATED_KEY] = True
+    return had_result
 
 
 def _prepare_mapping_session_state(source_key: str) -> bool:
@@ -715,6 +752,7 @@ def _prepare_mapping_session_state(source_key: str) -> bool:
                 previous_prefix is not None and key.startswith(previous_prefix)
             ):
                 st.session_state.pop(key, None)
+        _invalidate_standardization_preview()
         st.session_state[MAPPING_SOURCE_KEY] = source_key
     return invalidated
 
@@ -793,9 +831,186 @@ def _render_confirmed_mapping_summary(
         for warning in confirmed.warnings:
             st.warning(warning)
     st.info(
-        "字段映射已确认，但当前尚未执行数据标准化或绩效计算。"
-        "下一阶段将按照确认的映射进行严格验证。"
+        "字段映射已确认，但尚未生成标准化预览或执行绩效计算。"
+        "如需继续，请在下方主动生成标准化预览。"
     )
+
+
+def _mapping_matches_confirmed(
+    draft: object,
+    confirmed: ConfirmedMapping,
+) -> bool:
+    """比较当前表单选择与已确认映射，不比较一次性确认勾选。"""
+    return bool(
+        draft.source_key == confirmed.source_key
+        and draft.primary_basis == confirmed.primary_basis
+        and all(
+            draft.role_to_column.get(role)
+            == confirmed.role_to_column.get(role)
+            for role in ROLE_ORDER
+        )
+    )
+
+
+def _standardization_issue_rows(
+    result: StandardizationResult,
+) -> list[dict[str, object]]:
+    return [
+        {
+            "等级": "阻断" if issue.level == BLOCKING else "warning",
+            "问题代码": issue.code,
+            "业务角色": issue.role or "—",
+            "原始字段": issue.column_name or "—",
+            "受影响行数": issue.row_count,
+            "中文说明": issue.message,
+        }
+        for issue in result.issues
+    ]
+
+
+def _standardization_role_rows(
+    result: StandardizationResult,
+) -> list[dict[str, str]]:
+    analysis_columns = set(result.analysis_frame.columns)
+    diagnostic_columns = set(result.diagnostic_frame.columns)
+    rows: list[dict[str, str]] = []
+    for role in ROLE_ORDER:
+        column_name = result.confirmed_mapping.role_to_column.get(role)
+        if column_name is None:
+            continue
+        output_name = "nav_strat" if role == "strategy_nav" else role
+        enters_candidate = output_name in analysis_columns
+        diagnostic_only = role in diagnostic_columns
+        if role == "date":
+            purpose = "两种主口径共同必需的日期字段"
+        elif enters_candidate:
+            purpose = "进入 B.4B 分析候选输入"
+        elif role == "benchmark_nav":
+            purpose = "仅用于诊断；暂不自动支持转换为基准收益率"
+        elif role == "drawdown":
+            purpose = "仅用于一致性或质量诊断，不作为绩效输入"
+        elif role == "daily_ret":
+            purpose = "仅用于诊断；不会覆盖策略收益率或净值"
+        else:
+            purpose = "非主口径辅助字段，仅用于一致性或质量诊断"
+        rows.append(
+            {
+                "业务角色": role,
+                "原始字段": column_name,
+                "标准化字段": output_name,
+                "属于主口径": (
+                    "是"
+                    if role == result.primary_basis
+                    else "公共必需" if role == "date" else "否"
+                ),
+                "进入B.4B候选输入": "是" if enters_candidate else "否",
+                "仅诊断": "是" if diagnostic_only else "否",
+                "当前边界": purpose,
+            }
+        )
+    return rows
+
+
+def _render_standardization_result(result: StandardizationResult) -> None:
+    """展示只读候选表、诊断字段和完整问题清单。"""
+    blocking_count = sum(issue.level == BLOCKING for issue in result.issues)
+    warning_count = sum(issue.level == WARNING for issue in result.issues)
+    basis_label = (
+        "策略收益率为主"
+        if result.primary_basis == PRIMARY_BASIS_RETURN
+        else "策略净值为主"
+    )
+    summary_rows = [
+        {"项目": "主口径", "结果": basis_label},
+        {"项目": "标准化结构类型", "结果": result.structure_type},
+        {"项目": "原始行数", "结果": str(result.source_row_count)},
+        {"项目": "标准化行数", "结果": str(result.row_count)},
+        {
+            "项目": "分析候选字段",
+            "结果": "、".join(result.analysis_frame.columns) or "无",
+        },
+        {
+            "项目": "诊断字段",
+            "结果": "、".join(result.diagnostic_frame.columns) or "无",
+        },
+        {"项目": "阻断问题数量", "结果": str(blocking_count)},
+        {"项目": "warning数量", "结果": str(warning_count)},
+        {"项目": "标准化策略版本", "结果": result.policy_version},
+    ]
+    st.write("**预检摘要**")
+    st.dataframe(pd.DataFrame(summary_rows), hide_index=True, width="stretch")
+    st.write("**字段用途与边界**")
+    st.dataframe(
+        pd.DataFrame(_standardization_role_rows(result)),
+        hide_index=True,
+        width="stretch",
+    )
+
+    st.write("**标准化分析候选表（前 20 行）**")
+    st.caption("保留原始索引、行数和行顺序；未排序、去重、填充或删行。")
+    st.dataframe(result.analysis_frame.head(20), width="stretch")
+    st.write("**诊断字段表（前 20 行）**")
+    if result.diagnostic_frame.empty:
+        st.caption("当前确认映射没有诊断字段。")
+    else:
+        st.dataframe(result.diagnostic_frame.head(20), width="stretch")
+
+    st.write("**完整问题清单**")
+    issue_rows = _standardization_issue_rows(result)
+    if issue_rows:
+        st.dataframe(pd.DataFrame(issue_rows), hide_index=True, width="stretch")
+    else:
+        st.caption("当前预检未生成阻断问题或 warning。")
+
+    if result.is_preview_valid:
+        st.success("标准化预检通过，可以在下一阶段进入现有严格协议验证。")
+    else:
+        st.error(
+            "标准化预检未通过。系统未删除、修改或修复原始数据，"
+            "请返回原文件或字段映射进行处理。"
+        )
+    st.info("当前尚未执行绩效计算、图表生成、报告生成或结果导出。")
+
+
+def _render_standardization_preview(
+    dataframe: pd.DataFrame,
+    confirmed: ConfirmedMapping,
+) -> None:
+    """仅在用户主动点击后生成并保留当前会话的标准化预览。"""
+    st.markdown("### 8.2 标准化转换与预检")
+    st.warning(
+        "当前仅生成标准化预览并执行数据质量预检，"
+        "尚未进入现有严格分析协议或绩效计算。"
+    )
+    current_result = st.session_state.get(STANDARDIZATION_RESULT_KEY)
+    if isinstance(current_result, StandardizationResult) and not (
+        is_standardization_result_current(current_result, confirmed)
+    ):
+        _invalidate_standardization_preview()
+        current_result = None
+    if st.session_state.pop(STANDARDIZATION_INVALIDATED_KEY, False):
+        st.warning(STANDARDIZATION_INVALIDATION_MESSAGE)
+
+    mapping_key = build_mapping_key(confirmed)
+    generate = st.button(
+        "生成标准化预览",
+        key=f"{STANDARDIZATION_STATE_PREFIX}:generate:{mapping_key}",
+        type="primary",
+        help=(
+            "只在内存中创建新的 DataFrame 并执行预检；"
+            "不会启动绩效分析、生成图表或提供下载。"
+        ),
+    )
+    if generate:
+        current_result = standardize_confirmed_mapping(dataframe, confirmed)
+        st.session_state[STANDARDIZATION_RESULT_KEY] = current_result
+
+    if isinstance(current_result, StandardizationResult) and (
+        is_standardization_result_current(current_result, confirmed)
+    ):
+        _render_standardization_result(current_result)
+    else:
+        st.caption("尚未生成预览；请确认映射无误后主动点击上方按钮。")
     st.caption(
         "尚未执行数据标准化、收益率单位转换、绩效计算、"
         "图表生成或结果导出。"
@@ -815,6 +1030,8 @@ def _render_field_mapping(
     )
     if _prepare_mapping_session_state(source_key):
         st.warning("文件或解析设置已变化，请重新确认字段映射。")
+    if st.session_state.pop(STANDARDIZATION_INVALIDATED_KEY, False):
+        st.warning(STANDARDIZATION_INVALIDATION_MESSAGE)
 
     suggested = build_suggested_mapping(
         result.column_names,
@@ -909,12 +1126,34 @@ def _render_field_mapping(
             help="仅保存当前会话中的字段引用，不会启动分析。",
         )
 
+    existing_confirmed = st.session_state.get(MAPPING_CONFIRMED_KEY)
+    if (
+        isinstance(existing_confirmed, ConfirmedMapping)
+        and is_confirmed_mapping_current(existing_confirmed, source_key)
+        and not _mapping_matches_confirmed(draft, existing_confirmed)
+    ):
+        st.session_state.pop(MAPPING_CONFIRMED_KEY, None)
+        if _invalidate_standardization_preview():
+            st.session_state.pop(STANDARDIZATION_INVALIDATED_KEY, None)
+            st.warning(STANDARDIZATION_INVALIDATION_MESSAGE)
+        st.warning("字段映射选择已变化，请重新确认字段映射。")
+
     if submitted:
         if validation.is_valid:
-            st.session_state[MAPPING_CONFIRMED_KEY] = confirm_mapping(
+            new_confirmed = confirm_mapping(
                 draft,
                 validation,
             )
+            previous_confirmed = st.session_state.get(MAPPING_CONFIRMED_KEY)
+            if (
+                isinstance(previous_confirmed, ConfirmedMapping)
+                and build_mapping_key(previous_confirmed)
+                != build_mapping_key(new_confirmed)
+                and _invalidate_standardization_preview()
+            ):
+                st.session_state.pop(STANDARDIZATION_INVALIDATED_KEY, None)
+                st.warning(STANDARDIZATION_INVALIDATION_MESSAGE)
+            st.session_state[MAPPING_CONFIRMED_KEY] = new_confirmed
         else:
             st.error("字段映射存在阻断性错误，尚未建立确认状态。")
 
@@ -924,6 +1163,7 @@ def _render_field_mapping(
         source_key,
     ):
         _render_confirmed_mapping_summary(confirmed, detection)
+        _render_standardization_preview(result.dataframe, confirmed)
     else:
         st.info(FIELD_SUGGESTION_BOUNDARY)
 
