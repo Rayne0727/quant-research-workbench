@@ -260,6 +260,7 @@ def test_home_page_explains_product_and_main_workflows() -> None:
     (
         ("home_open_single", "单实验分析"),
         ("home_open_comparison", "多实验比较"),
+        ("home_open_reference_files", "参考文件"),
     ),
 )
 def test_home_entry_buttons_open_expected_page(
@@ -958,6 +959,77 @@ def test_can_enter_comparison_and_sample_still_renders() -> None:
     assert "下载标准化比较 CSV 模板" in _download_labels(app)
 
 
+def test_reference_files_page_renders_synthetic_library_without_analysis() -> None:
+    app = _open_page(_load_app(), "参考文件")
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    assert app.title[0].value == "参考文件"
+    assert "确定性合成数据" in page_text
+    assert "不代表真实投资结果" in page_text
+    assert "参考文件" in page_text
+    assert len(app.get("plotly_chart")) == 0
+    assert len(app.get("file_uploader")) == 0
+    assert "核心指标" not in page_text
+
+
+def test_reference_page_exposes_all_static_downloads_with_safe_labels() -> None:
+    app = _open_page(_load_app(), "参考文件")
+    download_labels = _download_labels(app)
+
+    assert not app.exception
+    assert len(download_labels) == 11
+    assert sum(label.startswith("下载错误示例：") for label in download_labels) == 5
+    assert "下载标准收益率（含基准）" in download_labels
+    assert "下载中文通用收益率示例" in download_labels
+    assert "下载中文通用净值示例" in download_labels
+    assert "下载多工作表线上回归 XLSX" in download_labels
+    assert "下载错误示例：百分号收益率" in download_labels
+    assert "下载错误示例：重复日期" in download_labels
+
+
+def test_reference_page_groups_errors_in_collapsed_warning_section() -> None:
+    app = _open_page(_load_app(), "参考文件")
+    expander_labels = [expander.label for expander in app.expander]
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    assert "错误示例与预检说明" in expander_labels
+    error_expander = next(
+        item for item in app.expander if item.label == "错误示例与预检说明"
+    )
+    assert error_expander.proto.expanded is False
+    assert "故意包含不明确或不安全的数据" in page_text
+    assert "不应作为正常分析模板" in page_text
+
+
+def test_reference_page_shows_entry_basis_mapping_and_expected_result() -> None:
+    app = _open_page(_load_app(), "参考文件")
+    page_text = _visible_text(app)
+
+    assert "推荐入口" in page_text
+    assert "按现有标准协议上传" in page_text
+    assert "通用文件导入（CSV/XLSX）" in page_text
+    assert "推荐主口径" in page_text
+    assert "策略收益率为主" in page_text
+    assert "策略净值为主" in page_text
+    assert "推荐字段映射" in page_text
+    assert "交易日期 → date" in page_text
+    assert "预期结果" in page_text
+
+
+def test_reference_navigation_is_fifth_page_in_expected_order() -> None:
+    app = _load_app()
+
+    assert app.radio(key="app_navigation").options == [
+        "首页",
+        "单实验分析",
+        "多实验比较",
+        "参考文件",
+        "使用说明",
+    ]
+
+
 def test_comparison_drawdown_axis_uses_two_decimal_percentage() -> None:
     app = _open_page(_load_app(), "多实验比较")
     drawdown_spec = json.loads(app.get("plotly_chart")[1].proto.spec)
@@ -972,8 +1044,10 @@ def test_can_enter_usage_guide() -> None:
 
     assert not app.exception
     assert app.title[0].value == "使用说明"
-    assert tab_labels == ["单实验", "多实验", "常见错误", "数据处理"]
+    assert tab_labels == ["单实验", "多实验", "参考文件", "常见错误", "数据处理"]
     assert "0.01 表示 1%" in _visible_text(app)
+    assert "错误示例用于理解系统的阻断机制" in _visible_text(app)
+    assert "不会自动切换页面、建立映射或启动分析" in _visible_text(app)
 
 
 def test_page_displays_version_privacy_notice_and_disclaimer() -> None:
@@ -1023,7 +1097,7 @@ def test_main_privacy_pages_keep_complete_sensitive_data_warning(
 
 @pytest.mark.parametrize(
     "page_name",
-    ("首页", "单实验分析", "多实验比较", "使用说明"),
+    ("首页", "单实验分析", "多实验比较", "参考文件", "使用说明"),
 )
 def test_all_pages_display_version_from_shared_config(page_name: str) -> None:
     app = _load_app()
@@ -1060,6 +1134,7 @@ def test_ui_modules_do_not_hardcode_release_version() -> None:
         Path("src/ui_common.py"),
         Path("src/ui_single.py"),
         Path("src/ui_comparison.py"),
+        Path("src/ui_reference_files.py"),
     )
 
     assert all(
@@ -1074,7 +1149,7 @@ def test_ui_modules_do_not_hardcode_release_version() -> None:
 
 @pytest.mark.parametrize(
     "page_name",
-    ("首页", "单实验分析", "多实验比较", "使用说明"),
+    ("首页", "单实验分析", "多实验比较", "参考文件", "使用说明"),
 )
 def test_all_navigation_pages_have_no_uncaught_exception(page_name: str) -> None:
     app = _load_app()

@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "pack_version": "qrw-reference-files-v1",
+  "synthetic_data_only": true,
+  "disclaimer": "所有文件均为确定性合成数据，不代表任何真实证券、账户、机构或投资结果。",
+  "files": [
+    {
+      "id": "standard_returns_with_benchmark",
+      "filename": "01_standard_returns_with_benchmark.csv",
+      "relative_path": "valid/01_standard_returns_with_benchmark.csv",
+      "title": "标准收益率（含基准）",
+      "group": "valid",
+      "file_type": "CSV",
+      "description": "用于验证标准日频收益协议、基准对比、报告和下载。",
+      "recommended_entry": "按现有标准协议上传",
+      "recommended_primary_basis": "策略收益率为主",
+      "recommended_mapping": {
+        "date": "date",
+        "strategy_return": "strategy_return",
+        "benchmark_return": "benchmark_return"
+      },
+      "contains_benchmark": true,
+      "expected_result": "pass",
+      "expected_stage": "完整分析",
+      "expected_message": "应通过标准日频收益协议，并显示策略与基准分析、报告及下载。",
+      "safety_note": "确定性合成数据，不代表真实投资结果。"
+    },
+    {
+      "id": "standard_returns_no_benchmark",
+      "filename": "02_standard_returns_no_benchmark.csv",
+      "relative_path": "valid/02_standard_returns_no_benchmark.csv",
+      "title": "标准收益率（无基准）",
+      "group": "valid",
+      "file_type": "CSV",
+      "description": "用于验证无基准的标准日频收益分析流程。",
+      "recommended_entry": "按现有标准协议上传",
+      "recommended_primary_basis": "策略收益率为主",
+      "recommended_mapping": {
+        "date": "date",
+        "strategy_return": "strategy_return"
+      },
+      "contains_benchmark": false,
+      "expected_result": "pass",
+      "expected_stage": "完整分析",
+      "expected_message": "应按无基准流程完成分析，不应生成虚假基准。",
+      "safety_note": "确定性合成数据，不代表真实投资结果。"
+    },
+    {
+      "id": "generic_cn_returns",
+      "filename": "03_generic_cn_returns.csv",
+      "relative_path": "valid/03_generic_cn_returns.csv",
+      "title": "中文通用收益率示例",
+      "group": "valid",
+      "file_type": "CSV",
+      "description": "用于演示中文字段识别、确认映射和收益率主口径分析。",
+      "recommended_entry": "通用文件导入（CSV/XLSX）",
+      "recommended_primary_basis": "策略收益率为主",
+      "recommended_mapping": {
+        "date": "交易日期",
+        "strategy_return": "策略收益率",
+        "benchmark_return": "基准收益率"
+      },
+      "contains_benchmark": true,
+      "expected_result": "pass",
+      "expected_stage": "完整分析",
+      "expected_message": "应依次通过字段确认、标准化预检、严格协议验证和最终分析。",
+      "safety_note": "确定性合成数据，不代表真实投资结果。"
+    },
+    {
+      "id": "generic_cn_nav",
+      "filename": "04_generic_cn_nav.csv",
+      "relative_path": "valid/04_generic_cn_nav.csv",
+      "title": "中文通用净值示例",
+      "group": "valid",
+      "file_type": "CSV",
+      "description": "用于演示中文净值字段映射和净值主口径分析；辅助日收益首行为空，仅供查看。",
+      "recommended_entry": "通用文件导入（CSV/XLSX）",
+      "recommended_primary_basis": "策略净值为主",
+      "recommended_mapping": {
+        "date": "交易日期",
+        "strategy_nav": "组合净值"
+      },
+      "contains_benchmark": false,
+      "expected_result": "pass",
+      "expected_stage": "完整分析",
+      "expected_message": "不映射首行为空的辅助日收益时，应通过净值预检和现有净值适配器。",
+      "safety_note": "确定性合成数据，不代表真实投资结果。"
+    },
+    {
+      "id": "generic_en_returns",
+      "filename": "05_generic_en_returns.csv",
+      "relative_path": "valid/05_generic_en_returns.csv",
+      "title": "英文通用收益率示例",
+      "group": "valid",
+      "file_type": "CSV",
+      "description": "用于演示英文别名字段识别、确认映射和收益率分析。",
+      "recommended_entry": "通用文件导入（CSV/XLSX）",
+      "recommended_primary_basis": "策略收益率为主",
+      "recommended_mapping": {
+        "date": "trade_date",
+        "strategy_return": "portfolio_return",
+        "benchmark_return": "benchmark_ret"
+      },
+      "contains_benchmark": true,
+      "expected_result": "pass",
+      "expected_stage": "完整分析",
+      "expected_message": "应识别英文候选并在用户确认后完成现有收益率分析。",
+      "safety_note": "确定性合成数据，不代表真实投资结果。"
+    },
+    {
+      "id": "multi_sheet_online_regression",
+      "filename": "11_multi_sheet_online_regression.xlsx",
+      "relative_path": "valid/11_multi_sheet_online_regression.xlsx",
+      "title": "多工作表线上回归 XLSX",
+      "group": "valid",
+      "file_type": "XLSX",
+      "description": "用于验证多工作表选择、切换失效、有效流程和错误阻断。",
+      "recommended_entry": "通用文件导入（CSV/XLSX）",
+      "recommended_primary_basis": "按所选工作表确定收益率或净值主口径",
+      "recommended_mapping": {
+        "date": "交易日期或 trade_date",
+        "strategy_return": "策略收益率或 portfolio_return",
+        "strategy_nav": "组合净值"
+      },
+      "contains_benchmark": true,
+      "expected_result": "pass",
+      "expected_stage": "按工作表分别验证",
+      "expected_message": "有效工作表应按推荐映射通过；错误工作表应阻断；切换后旧状态应失效。",
+      "safety_note": "确定性合成数据，不代表真实投资结果。"
+    },
+    {
+      "id": "error_percent_strings",
+      "filename": "06_error_percent_strings.csv",
+      "relative_path": "error_examples/06_error_percent_strings.csv",
+      "title": "百分号收益率",
+      "group": "error_examples",
+      "file_type": "CSV",
+      "description": "收益率使用百分号文本，故意不符合确定性数值解析规则。",
+      "recommended_entry": "通用文件导入（CSV/XLSX）",
+      "recommended_primary_basis": "策略收益率为主",
+      "recommended_mapping": {
+        "date": "交易日期",
+        "strategy_return": "策略收益率",
+        "benchmark_return": "基准收益率"
+      },
+      "contains_benchmark": true,
+      "expected_result": "block",
+      "expected_stage": "B.3 字段映射确认",
+      "expected_message": "应提示收益字段没有可转换数值并阻断确认。",
+      "safety_note": "确定性合成数据，故意包含错误，仅用于验证阻断行为。",
+      "prohibited_automatic_action": "不得自动删除百分号或除以 100。"
+    },
+    {
+      "id": "error_duplicate_dates",
+      "filename": "07_error_duplicate_dates.csv",
+      "relative_path": "error_examples/07_error_duplicate_dates.csv",
+      "title": "重复日期",
+      "group": "error_examples",
+      "file_type": "CSV",
+      "description": "日期列故意包含重复交易日。",
+      "recommended_entry": "通用文件导入（CSV/XLSX）",
+      "recommended_primary_basis": "策略收益率为主",
+      "recommended_mapping": {
+        "date": "交易日期",
+        "strategy_return": "策略收益率"
+      },
+      "contains_benchmark": false,
+      "expected_result": "block",
+      "expected_stage": "B.4A 标准化预检",
+      "expected_message": "应提示重复日期并阻断。",
+      "safety_note": "确定性合成数据，故意包含错误，仅用于验证阻断行为。",
+      "prohibited_automatic_action": "不得自动去重或删除重复行。"
+    },
+    {
+      "id": "error_ambiguous_dates",
+      "filename": "08_error_ambiguous_dates.csv",
+      "relative_path": "error_examples/08_error_ambiguous_dates.csv",
+      "title": "含糊日期",
+      "group": "error_examples",
+      "file_type": "CSV",
+      "description": "日期采用可被不同地区解释为不同含义的格式。",
+      "recommended_entry": "通用文件导入（CSV/XLSX）",
+      "recommended_primary_basis": "策略收益率为主",
+      "recommended_mapping": {
+        "date": "日期",
+        "strategy_return": "策略收益率"
+      },
+      "contains_benchmark": false,
+      "expected_result": "block",
+      "expected_stage": "B.4A 标准化预检",
+      "expected_message": "应提示日期无法可靠解析并阻断。",
+      "safety_note": "确定性合成数据，故意包含错误，仅用于验证阻断行为。",
+      "prohibited_automatic_action": "不得根据地区环境猜测日月顺序。"
+    },
+    {
+      "id": "error_unsorted_dates",
+      "filename": "09_error_unsorted_dates.csv",
+      "relative_path": "error_examples/09_error_unsorted_dates.csv",
+      "title": "日期倒序",
+      "group": "error_examples",
+      "file_type": "CSV",
+      "description": "日期列故意不是严格单调递增。",
+      "recommended_entry": "通用文件导入（CSV/XLSX）",
+      "recommended_primary_basis": "策略收益率为主",
+      "recommended_mapping": {
+        "date": "交易日期",
+        "strategy_return": "策略收益率"
+      },
+      "contains_benchmark": false,
+      "expected_result": "block",
+      "expected_stage": "B.4A 标准化预检",
+      "expected_message": "应提示日期未严格递增并阻断。",
+      "safety_note": "确定性合成数据，故意包含错误，仅用于验证阻断行为。",
+      "prohibited_automatic_action": "不得自动排序或改写行顺序。"
+    },
+    {
+      "id": "error_nonpositive_nav",
+      "filename": "10_error_nonpositive_nav.csv",
+      "relative_path": "error_examples/10_error_nonpositive_nav.csv",
+      "title": "非正净值",
+      "group": "error_examples",
+      "file_type": "CSV",
+      "description": "净值列故意包含零值和负值。",
+      "recommended_entry": "通用文件导入（CSV/XLSX）",
+      "recommended_primary_basis": "策略净值为主",
+      "recommended_mapping": {
+        "date": "交易日期",
+        "strategy_nav": "组合净值"
+      },
+      "contains_benchmark": false,
+      "expected_result": "block",
+      "expected_stage": "B.4A 标准化预检",
+      "expected_message": "应提示净值必须大于零并阻断。",
+      "safety_note": "确定性合成数据，故意包含错误，仅用于验证阻断行为。",
+      "prohibited_automatic_action": "不得归一化、删除或修复非正净值。"
+    }
+  ]
+}

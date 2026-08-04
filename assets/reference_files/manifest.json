@@ -1,0 +1,77 @@
+[
+  {
+    "relative_path": ".gitattributes",
+    "sha256": "32966c8f89acc0110f6a39bf66f2c0cfe327afcaf642ca8546e36bdad19f1e18",
+    "size_bytes": 30
+  },
+  {
+    "relative_path": "README.md",
+    "sha256": "a427582ce6cbff2bbe391214f6a3623a14e9227d2b1f1bd8f75d5efe43c45acc",
+    "size_bytes": 3627
+  },
+  {
+    "relative_path": "catalog.json",
+    "sha256": "a6740057c29fed15c894aa341abf9d92ab88068700f77c5109a88976bad042c5",
+    "size_bytes": 10687
+  },
+  {
+    "relative_path": "error_examples/06_error_percent_strings.csv",
+    "sha256": "23a0f73bd94396563b2d53dd3b8ff7c4272a9650328c434ba6a535bfd231f57f",
+    "size_bytes": 1193
+  },
+  {
+    "relative_path": "error_examples/07_error_duplicate_dates.csv",
+    "sha256": "fedc7dbae200691f94f1e156eed746b8adfdc5201607005160621d88ba7b47c9",
+    "size_bytes": 962
+  },
+  {
+    "relative_path": "error_examples/08_error_ambiguous_dates.csv",
+    "sha256": "5ac8f0a0ab7e038e53ba64b441a5a8f76f91d1da3c3c252872a0243b960acac3",
+    "size_bytes": 718
+  },
+  {
+    "relative_path": "error_examples/09_error_unsorted_dates.csv",
+    "sha256": "3200ffe3c1a45debd3de23d4b30810e498e905018b403ad622336cbb5cbc0887",
+    "size_bytes": 962
+  },
+  {
+    "relative_path": "error_examples/10_error_nonpositive_nav.csv",
+    "sha256": "cc02459b36d9a986cfd7dd1ad6824a4bb99df37ab8b357110286737916d95f4c",
+    "size_bytes": 1071
+  },
+  {
+    "relative_path": "expected_outcomes.csv",
+    "sha256": "4851dc999c389055dd25bb770c2535fb09859a5aba058ed0b4b5a227fbd9b8de",
+    "size_bytes": 3108
+  },
+  {
+    "relative_path": "valid/01_standard_returns_with_benchmark.csv",
+    "sha256": "afbfcaaf9923fcf2ac2028d9982de245b258cda78d1ca3fdfdc511eba85f0d35",
+    "size_bytes": 6272
+  },
+  {
+    "relative_path": "valid/02_standard_returns_no_benchmark.csv",
+    "sha256": "64c2fed4da28bfe782017b7c9fae7f62e2c529eb770a1ab57763ef7395bee80c",
+    "size_bytes": 4217
+  },
+  {
+    "relative_path": "valid/03_generic_cn_returns.csv",
+    "sha256": "11c892d66399ee948bc2a3dcdd4c2b11b6d4c5c948062cd962579daf793d61a5",
+    "size_bytes": 6279
+  },
+  {
+    "relative_path": "valid/04_generic_cn_nav.csv",
+    "sha256": "88a9ea4856a7db06aa910cd915a2e0bd7bf132c5daadd60e66094a612030c921",
+    "size_bytes": 6895
+  },
+  {
+    "relative_path": "valid/05_generic_en_returns.csv",
+    "sha256": "14ae845b9c8e7be20446bbd61f1e29270e1b5671db811fa6d7f7d10459c356b3",
+    "size_bytes": 6276
+  },
+  {
+    "relative_path": "valid/11_multi_sheet_online_regression.xlsx",
+    "sha256": "d23465bd1f07e0d40b6469fd8c691ac83b99ef66aca6b50041c28a065cdd1786",
+    "size_bytes": 25890
+  }
+]

@@ -30,9 +30,9 @@ render_sidebar_context()
 
 selected_page = st.sidebar.radio(
     "网站导航",
-    options=("首页", "单实验分析", "多实验比较", "使用说明"),
+    options=("首页", "单实验分析", "多实验比较", "参考文件", "使用说明"),
     key="app_navigation",
-    help="选择首页、分析工具或使用说明。",
+    help="选择首页、分析工具、参考文件或使用说明。",
 )
 
 try:
@@ -44,6 +44,10 @@ try:
         from src.ui_comparison import render_comparison_page
 
         render_comparison_page()
+    elif selected_page == "参考文件":
+        from src.ui_reference_files import render_reference_files_page
+
+        render_reference_files_page()
     elif selected_page == "使用说明":
         render_help_page()
     else:

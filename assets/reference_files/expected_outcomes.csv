@@ -1,0 +1,17 @@
+﻿文件名,工作表,建议入口,建议主口径,预期结果,建议映射,线上验收要点
+01_standard_returns_with_benchmark.csv,,现有标准CSV直接上传,策略收益率,应通过,date → date；strategy_return → strategy_return；benchmark_return → benchmark_return,应显示策略与基准分析、报告及下载
+02_standard_returns_no_benchmark.csv,,现有标准CSV直接上传,策略收益率,应通过,date → date；strategy_return → strategy_return,应按无基准流程分析，不应生成虚假基准
+03_generic_cn_returns.csv,,通用文件导入,策略收益率,应通过,交易日期 → date；策略收益率 → strategy_return；基准收益率 → benchmark_return,依次完成建议、映射、标准化、严格验证和最终分析
+04_generic_cn_nav.csv,,通用文件导入,策略净值,应通过,交易日期 → date；组合净值 → strategy_nav；辅助日收益不映射,应通过净值适配器；辅助日收益首行为空，仅供查看
+05_generic_en_returns.csv,,通用文件导入,策略收益率,应通过,trade_date → date；portfolio_return → strategy_return；benchmark_ret → benchmark_return,英文别名识别与最终分析均应通过
+06_error_percent_strings.csv,,通用文件导入,策略收益率,应阻断,日期可映射；收益字段为百分号文本,不得自动除以100；B.3字段映射确认应提示没有可转换数值并阻断
+07_error_duplicate_dates.csv,,通用文件导入,策略收益率,应阻断,交易日期 → date；策略收益率 → strategy_return,B.4A应提示重复日期并阻断
+08_error_ambiguous_dates.csv,,通用文件导入,策略收益率,应阻断,日期 → date；策略收益率 → strategy_return,含糊日期不得按地区习惯猜测
+09_error_unsorted_dates.csv,,通用文件导入,策略收益率,应阻断,交易日期 → date；策略收益率 → strategy_return,不得自动排序修复，非严格递增应阻断
+10_error_nonpositive_nav.csv,,通用文件导入,策略净值,应阻断,交易日期 → date；组合净值 → strategy_nav,净值包含0和负数，B.4A应阻断
+11_multi_sheet_online_regression.xlsx,有效收益率_中文,通用XLSX导入,策略收益率,应通过,中文收益率字段,验证多工作表选择和收益率完整链路
+11_multi_sheet_online_regression.xlsx,有效净值_中文,通用XLSX导入,策略净值,应通过,交易日期 → date；组合净值 → strategy_nav；辅助日收益不映射,验证工作表切换、映射失效和净值完整链路
+11_multi_sheet_online_regression.xlsx,错误_百分号,通用XLSX导入,策略收益率,应阻断,收益字段为百分号文本,不得自动换算单位
+11_multi_sheet_online_regression.xlsx,错误_重复日期,通用XLSX导入,策略收益率,应阻断,存在重复日期,不得自动去重
+11_multi_sheet_online_regression.xlsx,错误_倒序日期,通用XLSX导入,策略收益率,应阻断,日期非严格递增,不得自动排序
+11_multi_sheet_online_regression.xlsx,错误_非正净值,通用XLSX导入,策略净值,应阻断,净值包含0和负数,不得归一化或修复
