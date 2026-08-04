@@ -1,7 +1,7 @@
 """应用版本和本地资源限制的集中配置。"""
 
 APP_NAME = "Quant Research Workbench"
-APP_VERSION = "0.1.0-rc1"
+APP_VERSION = "0.2.0"
 
 SINGLE_FILE_MAX_MB = 20
 COMPARISON_FILE_MAX_MB = 20
