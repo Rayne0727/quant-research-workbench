@@ -1,16 +1,16 @@
 # GitHub 与 Streamlit 云部署准备
 
-本文档说明 `v0.1.0-rc1` 的部署准备流程。本项目当前尚未创建远程仓库，也没有执行任何实际部署。
+本文档说明 `v0.2.0` 的本地启动、GitHub 集成、Streamlit Community Cloud 更新流程和部署验收边界。GitHub 远程仓库已经存在，`master` 是当前部署基线；Streamlit Community Cloud 已部署该应用，合并到 `master` 后由现有云端部署流程检测并更新。
 
-## 1. 为什么需要 GitHub 仓库
+## 1. GitHub 与部署基线
 
-Streamlit Community Cloud 从 GitHub 仓库读取应用代码、入口文件和依赖清单。代码推送到仓库后，云端平台才能构建应用；后续 push 也可能触发云端应用自动更新。
+Streamlit Community Cloud 从 GitHub 仓库读取应用代码、入口文件和依赖清单。当前仓库为 `Rayne0727/quant-research-workbench`，部署分支为 `master`。功能变更必须先通过 Pull Request、CI 和本地发布门禁，再合并到 `master`；云端部署流程随后检测更新。
 
 研究数据可能包含敏感信息。建议先使用私人 GitHub 仓库，并在平台能力允许时将测试应用设置为私人访问。公开仓库和公开应用会扩大代码、示例及页面的可见范围。
 
 ## 2. 当前部署参数
 
-- 仓库：以后实际创建或选择的 GitHub 仓库，不在文档中写死；
+- 仓库：`Rayne0727/quant-research-workbench`；
 - 分支：`master`；
 - 入口文件：`app.py`；
 - 本地 Python：`3.14.2`；
@@ -22,10 +22,12 @@ Streamlit Community Cloud 从 GitHub 仓库读取应用代码、入口文件和�
 
 ## 3. Streamlit Community Cloud 基本流程
 
-以下步骤仅供未来人工操作，本阶段不执行：
+现有应用更新时，不需要重复创建 Streamlit 应用或修改 Sharing 设置。先完成本地验证、PR 和 CI，再把通过门禁的变更合并到 `master`，并在平台完成线上人工验收。
 
-1. 在 GitHub 创建或选择仓库，优先设为私人仓库。
-2. 将经过安全检查的本地提交推送到 `master`。
+以下步骤仅供首次部署时人工使用：
+
+1. 在 GitHub 创建或选择经过安全检查的仓库。
+2. 确认准备部署的 `master` 已通过 CI 和发布门禁。
 3. 登录 Streamlit Community Cloud，并授权它读取所选仓库。
 4. 新建应用，选择仓库和 `master` 分支。
 5. 将入口文件设置为 `app.py`。
@@ -43,7 +45,8 @@ Streamlit Community Cloud 从 GitHub 仓库读取应用代码、入口文件和�
 
 ## 5. 云端验收清单
 
-- 页面显示 `Quant Research Workbench v0.1.0-rc1`；
+- 页面显示 `Quant Research Workbench v0.2.0`；
+- 首页、单实验分析、多实验比较、参考文件和使用说明版本一致；
 - 单实验示例无需 `data/raw` 即可运行；
 - 多实验固定示例正常；
 - 两类模板可以下载；
@@ -54,12 +57,12 @@ Streamlit Community Cloud 从 GitHub 仓库读取应用代码、入口文件和�
 - 应用访问范围符合预期；
 - 未配置不需要的 Secret。
 
-## 6. 更新与删除测试应用
+## 6. 更新与应用管理
 
-仓库 push 后，云端应用可能自动重新构建或更新。每次更新前应先确保 CI 和本地发布检查通过。
+合并到 `master` 后，现有云端部署流程会检测仓库变化并更新应用。每次更新前应确保 CI 和本地发布检查通过；更新后仍要人工检查五页导航、上传流程、下载、错误阻断和控制台状态。
 
-测试结束后，可在 Streamlit Community Cloud 的应用管理界面删除测试应用；如不再需要平台访问，还应在 GitHub 中撤销相应授权。删除云端应用不会自动删除 GitHub 仓库，两者需要分别管理。
+如需变更或删除应用，应由仓库和平台管理员在 Streamlit Community Cloud 管理界面人工操作。删除云端应用不会自动删除 GitHub 仓库，两者需要分别管理。
 
-## 7. 当前阶段边界
+## 7. 发布控制
 
-本阶段只生成 CI、依赖和说明文件，不创建 GitHub 仓库、不添加 remote、不 push、不登录平台，也不部署 Streamlit 应用。
+版本准备 Pull Request 只更新代码与文档，不创建 Git 标签或 GitHub Release，也不手动修改 Streamlit Sharing 设置。正式标签和 Release 必须等待合并后的 `master` 完成线上生产验收后再创建。

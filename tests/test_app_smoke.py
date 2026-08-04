@@ -478,7 +478,7 @@ def test_return_standardization_preview_is_read_only_and_has_no_analysis_outputs
     page_text = _visible_text(app)
 
     assert not app.exception
-    assert "标准化转换与预检" in page_text
+    assert "标准化转换与数据质量预检" in page_text
     assert "标准化分析候选表（前 20 行）" in page_text
     assert "当前尚未执行绩效计算、图表生成、报告生成或结果导出" in page_text
     summary = next(
@@ -1106,8 +1106,27 @@ def test_all_pages_display_version_from_shared_config(page_name: str) -> None:
 
     page_text = _visible_text(app)
 
-    assert f"v{APP_VERSION}" in page_text
+    assert APP_VERSION == "0.2.0"
+    assert "v0.2.0" in page_text
+    assert "v0.1.0-rc1" not in page_text
+    assert "V0.1.0-RC1" not in page_text
     assert f"V{APP_VERSION.upper()}" not in page_text
+
+
+def test_generic_import_uses_public_workflow_names_without_stage_codes() -> None:
+    app = _ready_generic_return()
+    page_text = _visible_text(app)
+    button_labels = [button.label for button in app.button]
+
+    assert not app.exception
+    assert "字段识别建议" in page_text
+    assert "确认字段映射" in page_text
+    assert "标准化转换与数据质量预检" in page_text
+    assert "严格协议验证" in page_text
+    assert all(code not in page_text for code in ("B.2", "B.3", "B.4A", "B.4B"))
+    assert button_labels.count("确认字段映射") == 1
+    assert button_labels.count("生成标准化预览") == 1
+    assert button_labels.count("执行严格协议验证") == 1
 
 
 def test_quick_guide_version_keeps_configured_case() -> None:
@@ -1137,10 +1156,10 @@ def test_ui_modules_do_not_hardcode_release_version() -> None:
         Path("src/ui_reference_files.py"),
     )
 
-    assert all(
-        "0.1.0-rc1" not in path.read_text(encoding="utf-8")
-        for path in ui_paths
-    )
+    for path in ui_paths:
+        source = path.read_text(encoding="utf-8")
+        assert "0.1.0-rc1" not in source
+        assert "0.2.0" not in source
     assert all(
         "APP_VERSION.upper()" not in path.read_text(encoding="utf-8")
         for path in ui_paths

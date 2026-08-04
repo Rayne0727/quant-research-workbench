@@ -910,7 +910,7 @@ def _render_confirmed_mapping_summary(
                 "业务角色": f"{role}（{ROLE_MAPPING_LABELS[role]}）",
                 "原始字段": column_name or "不映射",
                 "是否为主口径字段": "是" if role == confirmed.primary_basis else "否",
-                "B.2建议分数": str(score) if score is not None else "无候选分数",
+                "字段建议分数": str(score) if score is not None else "无候选分数",
                 "与系统首选建议是否一致": (
                     "是"
                     if column_name is not None and column_name == recommended
@@ -978,7 +978,7 @@ def _standardization_role_rows(
         if role == "date":
             purpose = "两种主口径共同必需的日期字段"
         elif enters_candidate:
-            purpose = "进入 B.4B 分析候选输入"
+            purpose = "进入严格协议验证的分析候选输入"
         elif role == "benchmark_nav":
             purpose = "仅用于诊断；暂不自动支持转换为基准收益率"
         elif role == "drawdown":
@@ -997,7 +997,7 @@ def _standardization_role_rows(
                     if role == result.primary_basis
                     else "公共必需" if role == "date" else "否"
                 ),
-                "进入B.4B候选输入": "是" if enters_candidate else "否",
+                "进入严格协议候选输入": "是" if enters_candidate else "否",
                 "仅诊断": "是" if diagnostic_only else "否",
                 "当前边界": purpose,
             }
@@ -1271,7 +1271,7 @@ def _render_standardization_preview(
     file_name: str,
 ) -> None:
     """仅在用户主动点击后生成并保留当前会话的标准化预览。"""
-    st.markdown("### 8.2 标准化转换与预检")
+    st.markdown("### 8.2 标准化转换与数据质量预检")
     st.warning(
         "当前仅生成标准化预览并执行数据质量预检，"
         "尚未进入现有严格分析协议或绩效计算。"
@@ -1376,10 +1376,10 @@ def _render_field_mapping(
                 None if selected_option == UNMAPPED_OPTION else selected_option
             )
             if recommended is None:
-                recommendation_text = "B.2 首选建议：未识别"
+                recommendation_text = "字段首选建议：未识别"
             else:
                 recommendation_text = (
-                    f"B.2 首选建议：{recommended.column_name} · "
+                    f"字段首选建议：{recommended.column_name} · "
                     f"{recommended.confidence} · {recommended.score} 分"
                 )
             st.caption(
