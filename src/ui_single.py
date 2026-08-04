@@ -1,5 +1,6 @@
 """单实验分析模式的 Streamlit 页面组织。"""
 
+from dataclasses import dataclass
 import logging
 from pathlib import Path
 
@@ -8,6 +9,14 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.adapters import WeeklyNavValidationError, load_weekly_nav_csv
+from src.analysis_bridge import (
+    AnalysisBridgeValidationError,
+    StrictProtocolResult,
+    build_generic_analysis_input,
+    build_generic_analysis_request,
+    is_strict_protocol_result_current,
+    validate_standardized_result,
+)
 from src.config import MAX_COLUMNS_PER_FILE, MAX_ROWS_PER_FILE, SINGLE_FILE_MAX_MB
 from src.data_loader import DataValidationError, load_returns_csv
 from src.file_import import (
@@ -94,6 +103,21 @@ STANDARDIZATION_INVALIDATED_KEY = (
 STANDARDIZATION_INVALIDATION_MESSAGE = (
     "文件、解析设置或字段映射已变化，请重新生成标准化预览。"
 )
+GENERIC_ANALYSIS_STATE_PREFIX = "qrw_generic_analysis"
+GENERIC_STRICT_RESULT_KEY = f"{GENERIC_ANALYSIS_STATE_PREFIX}:strict_result"
+GENERIC_STRICT_RESULT_KEY_KEY = (
+    f"{GENERIC_ANALYSIS_STATE_PREFIX}:strict_result_key"
+)
+GENERIC_ANALYSIS_RESULT_KEY = f"{GENERIC_ANALYSIS_STATE_PREFIX}:analysis_result"
+GENERIC_ANALYSIS_RESULT_KEY_KEY = (
+    f"{GENERIC_ANALYSIS_STATE_PREFIX}:analysis_result_key"
+)
+GENERIC_ANALYSIS_INVALIDATED_KEY = (
+    f"{GENERIC_ANALYSIS_STATE_PREFIX}:invalidation_pending"
+)
+GENERIC_ANALYSIS_INVALIDATION_MESSAGE = (
+    "文件、解析设置、字段映射或标准化结果已变化，请重新执行严格协议验证。"
+)
 PRIMARY_BASIS_LABELS = {
     "请选择": None,
     "策略收益率为主": PRIMARY_BASIS_RETURN,
@@ -114,6 +138,17 @@ ROLE_MAPPING_LABELS = {
 UNMAPPED_OPTION = "不映射"
 
 
+@dataclass(frozen=True)
+class _GenericAnalysisArtifacts:
+    """会话内保存的现有分析结果，不跨会话或写入磁盘。"""
+
+    analysis_request_key: str
+    cleaned_data: pd.DataFrame
+    performance_data: pd.DataFrame
+    metrics: dict[str, object]
+    diagnostics: object | None
+
+
 def render_single_page() -> None:
     """渲染单实验页面，并统一处理预期及未预期异常。"""
     try:
@@ -121,6 +156,7 @@ def render_single_page() -> None:
     except (
         DataValidationError,
         WeeklyNavValidationError,
+        AnalysisBridgeValidationError,
         FileImportError,
         UploadLimitError,
     ) as exc:
@@ -157,7 +193,7 @@ def _render_single_page() -> None:
         key="single_data_mode",
         help=(
             "标准协议路径会直接分析已符合协议的 CSV；"
-            "通用导入只读取 CSV/XLSX 并预览，不计算绩效。"
+            "通用导入需依次完成映射、预检、严格协议验证和最终确认后才计算绩效。"
         ),
     )
 
@@ -254,16 +290,6 @@ def _render_single_page() -> None:
         performance_data = add_performance_series(cleaned_data)
         metrics = calculate_performance_metrics(cleaned_data)
 
-    st.markdown("### 4. 数据检查结果")
-    st.success("字段、日期、数值和样本数量检查通过，可以继续分析。")
-    check_columns = st.columns(3)
-    check_columns[0].metric("数据记录数", str(len(cleaned_data)))
-    check_columns[1].write(f"**数据模式**  \n{current_mode}")
-    check_columns[2].write(f"**计算主字段**  \n`{primary_field}`")
-
-    if diagnostics is not None:
-        _render_diagnostics(diagnostics)
-
     default_experiment_name = (
         "示例日频收益实验"
         if data_mode == "使用示例数据"
@@ -274,6 +300,54 @@ def _render_single_page() -> None:
         if data_mode == "使用示例数据"
         else f"{selected_format}:{uploaded_file.name}"
     )
+    _render_completed_analysis(
+        cleaned_data=cleaned_data,
+        performance_data=performance_data,
+        metrics=metrics,
+        diagnostics=diagnostics,
+        selected_format=selected_format,
+        current_mode=current_mode,
+        primary_field=primary_field,
+        default_experiment_name=default_experiment_name,
+        input_identity=input_identity,
+    )
+
+
+def _render_completed_analysis(
+    *,
+    cleaned_data: pd.DataFrame,
+    performance_data: pd.DataFrame,
+    metrics: dict[str, object],
+    diagnostics: object | None,
+    selected_format: str,
+    current_mode: str,
+    primary_field: str,
+    default_experiment_name: str,
+    input_identity: str,
+    section_numbers: tuple[str, str, str, str, str, str] = (
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+    ),
+    source_label: str | None = None,
+) -> None:
+    """复用现有指标、图表、摘要、报告和导出展示。"""
+    check_section, metric_section, chart_section, summary_section, export_section, preview_section = section_numbers
+    st.markdown(f"### {check_section}. 数据检查结果")
+    st.success("字段、日期、数值和样本数量检查通过，可以继续分析。")
+    if source_label:
+        st.info(f"数据来源：{source_label}")
+    check_columns = st.columns(3)
+    check_columns[0].metric("数据记录数", str(len(cleaned_data)))
+    check_columns[1].write(f"**数据模式**  \n{current_mode}")
+    check_columns[2].write(f"**计算主字段**  \n`{primary_field}`")
+
+    if diagnostics is not None:
+        _render_diagnostics(diagnostics)
+
     with st.expander("实验信息（可选）", expanded=False):
         experiment_name = st.text_input(
             "实验名称",
@@ -294,7 +368,7 @@ def _render_single_page() -> None:
             key=f"research_notes:{input_identity}",
         )
 
-    st.markdown("### 5. 核心指标")
+    st.markdown(f"### {metric_section}. 核心指标")
     metric_row_one = st.columns(4)
     metric_row_one[0].metric(
         "累计收益", _format_percentage(metrics["cumulative_return"])
@@ -338,7 +412,7 @@ def _render_single_page() -> None:
             "对短期表现较敏感，仅供参考。"
         )
 
-    st.markdown("### 6. 图表")
+    st.markdown(f"### {chart_section}. 图表")
     nav_figure = go.Figure()
     nav_figure.add_trace(
         go.Scatter(
@@ -404,10 +478,10 @@ def _render_single_page() -> None:
     markdown_report = generate_markdown_report(report_context)
     standardized_csv = generate_standardized_csv(performance_data)
 
-    st.markdown("### 7. 分析摘要")
+    st.markdown(f"### {summary_section}. 分析摘要")
     st.markdown(analysis_summary)
 
-    st.markdown("### 8. 结果导出")
+    st.markdown(f"### {export_section}. 结果导出")
     st.caption("下载内容在内存中生成，不会由应用主动写入 data 目录。")
     download_columns = st.columns(2)
     download_columns[0].download_button(
@@ -428,7 +502,7 @@ def _render_single_page() -> None:
         icon=":material/download:",
     )
 
-    st.markdown("### 9. 数据预览")
+    st.markdown(f"### {preview_section}. 数据预览")
     with st.expander("查看清洗后的数据（前 20 行）"):
         st.caption(f"字段：{', '.join(cleaned_data.columns)}")
         st.caption(f"记录数量：{len(cleaned_data)}")
@@ -436,10 +510,10 @@ def _render_single_page() -> None:
 
 
 def _render_general_file_import() -> None:
-    """读取通用 CSV/XLSX 并展示原始预览，不进入业务分析。"""
+    """组织通用 CSV/XLSX 的读取、确认、验证和显式分析流程。"""
     st.info(
-        "此入口只负责文件读取、字段建议和用户确认式字段映射。"
-        "映射确认后仍不会进入现有绩效分析流程。"
+        "通用文件会依次经过读取、字段确认、标准化预检和现有严格协议。"
+        "只有再次确认并点击“开始绩效分析”后才生成指标、图表、报告和导出。"
     )
 
     st.markdown("### 2. 上传文件")
@@ -562,14 +636,14 @@ def _render_import_result(result: ImportedTable, content: bytes) -> None:
     )
     _render_field_mapping(result, detection, source_key)
 
-    st.markdown("### 9. 下一阶段说明")
+    st.markdown("### 9. 流程边界")
     st.info(
-        "当前仅生成标准化预览并执行数据质量预检，"
-        "尚未进入现有严格分析协议或绩效计算。"
+        "标准化预检与现有严格协议验证是两道不同检查；"
+        "严格验证通过后仍需用户最终确认并主动启动绩效分析。"
     )
     st.caption(
-        "B.4B 才会把通过预检的候选结构接入现有严格协议；"
-        "当前不会生成绩效、图表、报告或下载结果。"
+        "文件、解析设置、工作表、字段映射或标准化结果变化后，"
+        "旧验证和分析结果会立即失效。"
     )
 
 
@@ -710,8 +784,28 @@ def _clear_mapping_session_state() -> None:
     _invalidate_standardization_preview()
 
 
+def _invalidate_generic_analysis(*, notify: bool = True) -> bool:
+    """清除会话内严格验证和绩效结果，不影响任何来源数据。"""
+    had_result = any(
+        key in st.session_state
+        for key in (GENERIC_STRICT_RESULT_KEY, GENERIC_ANALYSIS_RESULT_KEY)
+    )
+    for key in tuple(st.session_state):
+        if (
+            key.startswith(GENERIC_ANALYSIS_STATE_PREFIX)
+            and key != GENERIC_ANALYSIS_INVALIDATED_KEY
+        ):
+            st.session_state.pop(key, None)
+    if notify and had_result:
+        st.session_state[GENERIC_ANALYSIS_INVALIDATED_KEY] = True
+    elif not notify:
+        st.session_state.pop(GENERIC_ANALYSIS_INVALIDATED_KEY, None)
+    return had_result
+
+
 def _invalidate_standardization_preview() -> bool:
     """清除会话内旧预览，并保留一次明确的失效提示。"""
+    _invalidate_generic_analysis()
     had_result = isinstance(
         st.session_state.get(STANDARDIZATION_RESULT_KEY),
         StandardizationResult,
@@ -972,9 +1066,209 @@ def _render_standardization_result(result: StandardizationResult) -> None:
     st.info("当前尚未执行绩效计算、图表生成、报告生成或结果导出。")
 
 
+def _strict_protocol_summary_rows(
+    result: StrictProtocolResult,
+) -> list[dict[str, str]]:
+    basis_label = (
+        "策略收益率为主"
+        if result.primary_basis == PRIMARY_BASIS_RETURN
+        else "策略净值为主"
+    )
+    return [
+        {"项目": "分析主口径", "结果": basis_label},
+        {"项目": "严格协议", "结果": result.protocol_name},
+        {"项目": "输入行数", "结果": str(result.row_count)},
+        {
+            "项目": "有效分析观察数",
+            "结果": str(result.valid_observation_count),
+        },
+        {
+            "项目": "起始日期",
+            "结果": _format_date(result.date_start) if result.date_start is not None else "—",
+        },
+        {
+            "项目": "结束日期",
+            "结果": _format_date(result.date_end) if result.date_end is not None else "—",
+        },
+        {
+            "项目": "分析字段",
+            "结果": "、".join(result.analysis_input_columns),
+        },
+        {"项目": "基准是否存在", "结果": "是" if result.has_benchmark else "否"},
+        {"项目": "阻断错误数量", "结果": str(len(result.errors))},
+        {"项目": "warning数量", "结果": str(len(result.warnings))},
+        {
+            "项目": "analysis_request_key",
+            "结果": result.analysis_request_key[:12],
+        },
+    ]
+
+
+def _render_strict_protocol_result(result: StrictProtocolResult) -> None:
+    """展示严格协议摘要，不触发绩效、报告或导出。"""
+    st.write("**严格协议验证摘要**")
+    st.dataframe(
+        pd.DataFrame(_strict_protocol_summary_rows(result)),
+        hide_index=True,
+        width="stretch",
+    )
+    if result.adapter_diagnostics is not None:
+        diagnostics = result.adapter_diagnostics
+        st.write("**净值适配器一致性摘要**")
+        st.write(
+            f"有效比较 {diagnostics.comparison_count} 条；"
+            f"不一致 {diagnostics.mismatch_count} 条；"
+            f"容差和统计口径沿用现有净值适配器。"
+        )
+    for warning in result.warnings:
+        st.warning(warning)
+    for error in result.errors:
+        st.error(error)
+    if result.is_valid:
+        st.success(
+            "现有严格协议验证通过。请核对主口径、字段单位和分析范围后，"
+            "再明确启动绩效分析。"
+        )
+    else:
+        st.error(
+            "现有严格协议验证未通过。系统未修改或修复数据，"
+            "当前不能进入绩效分析。"
+        )
+
+
+def _build_generic_analysis_artifacts(
+    strict_result: StrictProtocolResult,
+) -> _GenericAnalysisArtifacts:
+    """仅在第二门禁点击后调用现有绩效函数。"""
+    cleaned_data = build_generic_analysis_input(strict_result)
+    if strict_result.primary_basis == PRIMARY_BASIS_NAV:
+        performance_data = add_nav_performance_series(cleaned_data)
+        metrics = calculate_nav_performance_metrics(cleaned_data)
+    else:
+        performance_data = add_performance_series(cleaned_data)
+        metrics = calculate_performance_metrics(cleaned_data)
+    return _GenericAnalysisArtifacts(
+        analysis_request_key=strict_result.analysis_request_key,
+        cleaned_data=cleaned_data.copy(deep=True),
+        performance_data=performance_data.copy(deep=True),
+        metrics=dict(metrics),
+        diagnostics=strict_result.adapter_diagnostics,
+    )
+
+
+def _render_generic_analysis_bridge(
+    standardization_result: StandardizationResult,
+    file_name: str,
+) -> None:
+    """渲染 B.4B 两道显式门禁，并复用现有单实验输出。"""
+    st.markdown("### 8.3 严格协议验证与绩效分析")
+    if st.session_state.pop(GENERIC_ANALYSIS_INVALIDATED_KEY, False):
+        st.warning(GENERIC_ANALYSIS_INVALIDATION_MESSAGE)
+
+    if not standardization_result.is_preview_valid:
+        _invalidate_generic_analysis(notify=False)
+        st.info("标准化预检通过后，才可以执行现有严格协议验证。")
+        return
+
+    request = build_generic_analysis_request(standardization_result)
+    strict_result = st.session_state.get(GENERIC_STRICT_RESULT_KEY)
+    strict_key = st.session_state.get(GENERIC_STRICT_RESULT_KEY_KEY)
+    strict_is_current = bool(
+        isinstance(strict_result, StrictProtocolResult)
+        and strict_key == request.analysis_request_key
+        and is_strict_protocol_result_current(
+            strict_result,
+            standardization_result,
+        )
+    )
+    if isinstance(strict_result, StrictProtocolResult) and not strict_is_current:
+        _invalidate_generic_analysis()
+        strict_result = None
+        st.warning(GENERIC_ANALYSIS_INVALIDATION_MESSAGE)
+
+    validate_clicked = st.button(
+        "执行严格协议验证",
+        key=f"{GENERIC_ANALYSIS_STATE_PREFIX}:validate:{request.analysis_request_key}",
+        type="primary",
+        help="只调用现有严格协议和净值适配器，不会在此步骤计算绩效。",
+    )
+    if validate_clicked:
+        _invalidate_generic_analysis(notify=False)
+        strict_result = validate_standardized_result(standardization_result)
+        st.session_state[GENERIC_STRICT_RESULT_KEY] = strict_result
+        st.session_state[GENERIC_STRICT_RESULT_KEY_KEY] = (
+            strict_result.analysis_request_key
+        )
+        strict_is_current = True
+
+    if not (isinstance(strict_result, StrictProtocolResult) and strict_is_current):
+        st.caption(
+            "尚未执行严格协议验证；标准化预检通过不等于现有严格协议验证通过。"
+        )
+        return
+
+    _render_strict_protocol_result(strict_result)
+    if not strict_result.is_valid:
+        st.caption("严格协议存在阻断错误，不会生成绩效、报告或下载内容。")
+        return
+
+    confirmation_key = (
+        f"{GENERIC_ANALYSIS_STATE_PREFIX}:final_confirmation:"
+        f"{strict_result.analysis_request_key}"
+    )
+    final_confirmation = st.checkbox(
+        "我已核对日期、收益率或净值字段的定义与单位，"
+        "确认按当前主口径和标准化结果进入现有绩效分析流程。",
+        key=confirmation_key,
+    )
+    start_clicked = st.button(
+        "开始绩效分析",
+        key=(
+            f"{GENERIC_ANALYSIS_STATE_PREFIX}:start:"
+            f"{strict_result.analysis_request_key}"
+        ),
+        disabled=not final_confirmation,
+        type="primary",
+        help="勾选最终确认后，才会调用现有绩效、图表、报告和导出流程。",
+    )
+    if start_clicked:
+        artifacts = _build_generic_analysis_artifacts(strict_result)
+        st.session_state[GENERIC_ANALYSIS_RESULT_KEY] = artifacts
+        st.session_state[GENERIC_ANALYSIS_RESULT_KEY_KEY] = (
+            artifacts.analysis_request_key
+        )
+
+    artifacts = st.session_state.get(GENERIC_ANALYSIS_RESULT_KEY)
+    artifacts_key = st.session_state.get(GENERIC_ANALYSIS_RESULT_KEY_KEY)
+    if not (
+        isinstance(artifacts, _GenericAnalysisArtifacts)
+        and artifacts_key == strict_result.analysis_request_key
+        and artifacts.analysis_request_key == strict_result.analysis_request_key
+    ):
+        st.caption("尚未启动绩效分析；当前页面不会提前生成指标、报告或下载。")
+        return
+
+    is_nav = strict_result.primary_basis == PRIMARY_BASIS_NAV
+    source_label = "通用文件导入 · 用户确认映射"
+    _render_completed_analysis(
+        cleaned_data=artifacts.cleaned_data,
+        performance_data=artifacts.performance_data,
+        metrics=artifacts.metrics,
+        diagnostics=artifacts.diagnostics,
+        selected_format=WEEKLY_NAV_FORMAT if is_nav else STANDARD_RETURN_FORMAT,
+        current_mode=source_label,
+        primary_field="nav_strat" if is_nav else "strategy_return",
+        default_experiment_name=Path(file_name).stem,
+        input_identity=f"generic:{strict_result.analysis_request_key}",
+        section_numbers=("8.4", "8.5", "8.6", "8.7", "8.8", "8.9"),
+        source_label=source_label,
+    )
+
+
 def _render_standardization_preview(
     dataframe: pd.DataFrame,
     confirmed: ConfirmedMapping,
+    file_name: str,
 ) -> None:
     """仅在用户主动点击后生成并保留当前会话的标准化预览。"""
     st.markdown("### 8.2 标准化转换与预检")
@@ -1002,6 +1296,7 @@ def _render_standardization_preview(
         ),
     )
     if generate:
+        _invalidate_generic_analysis()
         current_result = standardize_confirmed_mapping(dataframe, confirmed)
         st.session_state[STANDARDIZATION_RESULT_KEY] = current_result
 
@@ -1009,11 +1304,11 @@ def _render_standardization_preview(
         is_standardization_result_current(current_result, confirmed)
     ):
         _render_standardization_result(current_result)
+        _render_generic_analysis_bridge(current_result, file_name)
     else:
         st.caption("尚未生成预览；请确认映射无误后主动点击上方按钮。")
     st.caption(
-        "尚未执行数据标准化、收益率单位转换、绩效计算、"
-        "图表生成或结果导出。"
+        "本节不会自动转换收益率单位，也不会自动启动绩效、图表、报告或导出。"
     )
 
 
@@ -1163,7 +1458,11 @@ def _render_field_mapping(
         source_key,
     ):
         _render_confirmed_mapping_summary(confirmed, detection)
-        _render_standardization_preview(result.dataframe, confirmed)
+        _render_standardization_preview(
+            result.dataframe,
+            confirmed,
+            result.file_name,
+        )
     else:
         st.info(FIELD_SUGGESTION_BOUNDARY)
 

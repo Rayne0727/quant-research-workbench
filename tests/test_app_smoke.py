@@ -1,5 +1,6 @@
 """Streamlit 公共导航与示例流程烟雾测试。"""
 
+from dataclasses import replace
 import json
 from io import BytesIO
 from pathlib import Path
@@ -136,6 +137,80 @@ def _generate_standardization_preview(app: AppTest) -> AppTest:
         button for button in app.button if button.label == "生成标准化预览"
     ).click()
     return app.run()
+
+
+def _execute_strict_validation(app: AppTest) -> AppTest:
+    next(
+        button for button in app.button if button.label == "执行严格协议验证"
+    ).click()
+    return app.run()
+
+
+def _generic_final_confirmation(app: AppTest):
+    return next(
+        checkbox
+        for checkbox in app.checkbox
+        if checkbox.label.startswith("我已核对日期、收益率或净值字段")
+    )
+
+
+def _start_generic_analysis(app: AppTest) -> AppTest:
+    _generic_final_confirmation(app).set_value(True)
+    next(
+        button for button in app.button if button.label == "开始绩效分析"
+    ).click()
+    return app.run()
+
+
+def _strict_protocol_summary(app: AppTest):
+    return next(
+        item.value.set_index("项目")["结果"]
+        for item in app.dataframe
+        if item.value.columns.tolist() == ["项目", "结果"]
+        and "严格协议" in item.value["项目"].tolist()
+    )
+
+
+def _ready_generic_return(*, benchmark: bool = False) -> AppTest:
+    benchmark_header = ",benchmark_return" if benchmark else ""
+    benchmark_values = [",0.004", ",-0.002", ",0.006", ",0.001"]
+    rows = []
+    for index, (date, value) in enumerate(
+        (
+            ("2026-01-01", "0.01"),
+            ("2026-01-02", "-0.02"),
+            ("2026-01-03", "0.03"),
+            ("2026-01-04", "0.01"),
+        )
+    ):
+        rows.append(
+            f"{date},{value}{benchmark_values[index] if benchmark else ''}"
+        )
+    app = _open_general_csv(
+        f"trade_date,strategy_return{benchmark_header}\n" + "\n".join(rows) + "\n"
+    )
+    _submit_mapping(app)
+    return _generate_standardization_preview(app)
+
+
+def _ready_generic_nav() -> AppTest:
+    app = _open_general_csv(
+        "trade_date,strategy_nav,daily_ret\n"
+        "2026-01-01,100.0,0.0\n"
+        "2026-01-02,102.0,0.02\n"
+        "2026-01-03,101.0,-0.00980392156862745\n"
+        "2026-01-04,104.0,0.0297029702970297\n"
+    )
+    _set_mapping_and_submit(
+        app,
+        basis="策略净值为主",
+        roles={
+            "date": "trade_date",
+            "strategy_nav": "strategy_nav",
+            "daily_ret": "daily_ret",
+        },
+    )
+    return _generate_standardization_preview(app)
 
 
 def _mapping_role_selectbox(app: AppTest, role: str):
@@ -321,7 +396,8 @@ def test_general_return_mapping_can_be_explicitly_confirmed_without_analysis() -
     assert not app.exception
     assert any(item.value == "字段映射已确认。" for item in app.success)
     assert "已确认映射摘要" in page_text
-    assert "尚未执行数据标准化、收益率单位转换、绩效计算" in page_text
+    assert "本节不会自动转换收益率单位" in page_text
+    assert "尚未执行严格协议验证" not in page_text
     summary = app.dataframe[-1].value
     return_row = summary.loc[
         summary["业务角色"] == "strategy_return（策略收益率）"
@@ -508,6 +584,182 @@ def test_standardization_warnings_are_visible_without_claiming_analysis_complete
     assert "标准化预检通过，可以在下一阶段进入现有严格协议验证" in page_text
     assert "分析已经完成" not in page_text
     assert "数据验证全部通过" not in page_text
+
+
+def test_failed_b4a_preview_does_not_offer_strict_protocol_button() -> None:
+    app = _open_general_csv(
+        "trade_date,strategy_return\n"
+        "2026-01-01,0.01\n"
+        "2026-01-02,-1.0\n"
+    )
+    _submit_mapping(app)
+    _generate_standardization_preview(app)
+
+    assert "标准化预检未通过" in _visible_text(app)
+    assert "执行严格协议验证" not in [button.label for button in app.button]
+    assert len(app.get("metric")) == 0
+
+
+def test_valid_preview_exposes_strict_gate_without_running_analysis() -> None:
+    app = _ready_generic_return()
+
+    assert "执行严格协议验证" in [button.label for button in app.button]
+    assert "标准化预检通过不等于现有严格协议验证通过" in _visible_text(app)
+    assert len(app.get("metric")) == 0
+    assert len(app.get("plotly_chart")) == 0
+    assert len(app.get("download_button")) == 0
+
+
+def test_strict_validation_succeeds_but_still_requires_final_confirmation() -> None:
+    app = _execute_strict_validation(_ready_generic_return())
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    assert "严格协议验证摘要" in page_text
+    assert _strict_protocol_summary(app)["严格协议"] == "标准日收益协议"
+    assert "现有严格协议验证通过" in page_text
+    assert _generic_final_confirmation(app).value is False
+    start_button = next(
+        button for button in app.button if button.label == "开始绩效分析"
+    )
+    assert start_button.disabled
+    assert len(app.get("metric")) == 0
+    assert len(app.get("download_button")) == 0
+
+
+def test_return_primary_final_confirmation_reuses_full_analysis_output() -> None:
+    app = _start_generic_analysis(
+        _execute_strict_validation(_ready_generic_return())
+    )
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    assert "数据来源：通用文件导入 · 用户确认映射" in page_text
+    assert "核心指标" in page_text
+    assert len(app.get("metric")) == 8
+    assert len(app.get("plotly_chart")) == 2
+    assert _download_labels(app) == ["下载分析报告", "下载标准化分析数据"]
+
+
+def test_return_primary_with_benchmark_reuses_existing_benchmark_output() -> None:
+    app = _start_generic_analysis(
+        _execute_strict_validation(_ready_generic_return(benchmark=True))
+    )
+
+    assert not app.exception
+    assert any(metric.label == "基准累计收益" for metric in app.metric)
+    assert len(app.get("plotly_chart")) == 2
+
+
+def test_nav_primary_reuses_adapter_metrics_charts_report_and_downloads() -> None:
+    app = _start_generic_analysis(_execute_strict_validation(_ready_generic_nav()))
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    assert _strict_protocol_summary(app)["严格协议"] == "净值适配协议"
+    assert "净值适配器一致性摘要" in page_text
+    assert any(metric.label == "净值观察日数" for metric in app.metric)
+    assert any(metric.label == "有效收益日数" for metric in app.metric)
+    assert len(app.get("plotly_chart")) == 2
+    assert _download_labels(app) == ["下载分析报告", "下载标准化分析数据"]
+    assert "基准累计收益" not in [metric.label for metric in app.metric]
+
+
+def test_strict_protocol_failure_is_controlled_and_never_shows_analysis() -> None:
+    app = _ready_generic_return()
+    preview = app.session_state["qrw_standardization:result"]
+    invalid_frame = preview.analysis_frame.assign(unsupported=1)
+    app.session_state["qrw_standardization:result"] = replace(
+        preview,
+        analysis_frame=invalid_frame,
+    )
+    app.run()
+    _execute_strict_validation(app)
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    assert "现有严格协议验证未通过" in page_text
+    assert "当前阶段不支持的字段" in page_text
+    assert "开始绩效分析" not in [button.label for button in app.button]
+    assert len(app.get("metric")) == 0
+    assert len(app.get("download_button")) == 0
+
+
+def test_regenerating_standardization_invalidates_strict_and_analysis_results() -> None:
+    app = _start_generic_analysis(
+        _execute_strict_validation(_ready_generic_return())
+    )
+    assert len(app.get("metric")) == 8
+
+    _generate_standardization_preview(app)
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    assert "请重新执行严格协议验证" in page_text
+    assert len(app.get("metric")) == 0
+    assert len(app.get("plotly_chart")) == 0
+    assert len(app.get("download_button")) == 0
+
+
+def test_mapping_change_invalidates_generic_analysis_results() -> None:
+    app = _start_generic_analysis(
+        _execute_strict_validation(_ready_generic_return())
+    )
+    _mapping_role_selectbox(app, "strategy_return").set_value("不映射").run()
+
+    assert not app.exception
+    assert "字段映射选择已变化，请重新确认字段映射" in _visible_text(app)
+    assert len(app.get("metric")) == 0
+    assert len(app.get("plotly_chart")) == 0
+    assert len(app.get("download_button")) == 0
+
+
+def test_file_change_invalidates_generic_analysis_results() -> None:
+    app = _start_generic_analysis(
+        _execute_strict_validation(_ready_generic_return())
+    )
+    app.get("file_uploader")[0].upload(
+        "replacement.csv",
+        (
+            "trade_date,strategy_return\n"
+            "2026-02-01,0.02\n"
+            "2026-02-02,-0.01\n"
+            "2026-02-03,0.01\n"
+        ).encode("utf-8"),
+        "text/csv",
+    ).run()
+
+    assert not app.exception
+    assert len(app.get("metric")) == 0
+    assert len(app.get("plotly_chart")) == 0
+    assert len(app.get("download_button")) == 0
+    assert "重新确认字段映射" in _visible_text(app)
+
+
+def test_xlsx_sheet_change_invalidates_generic_analysis_results() -> None:
+    app = _open_page(_load_app(), "单实验分析")
+    app.radio(key="single_data_mode").set_value(
+        "通用文件导入（CSV/XLSX）"
+    ).run()
+    app.get("file_uploader")[0].upload(
+        "mapping.xlsx",
+        _mapping_multisheet_xlsx(),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ).run()
+    app.selectbox(key="general_xlsx_sheet").set_value("收益表").run()
+    _submit_mapping(app)
+    _generate_standardization_preview(app)
+    _execute_strict_validation(app)
+    _start_generic_analysis(app)
+    assert len(app.get("metric")) == 8
+
+    app.selectbox(key="general_xlsx_sheet").set_value("净值表").run()
+
+    assert not app.exception
+    assert len(app.get("metric")) == 0
+    assert len(app.get("plotly_chart")) == 0
+    assert len(app.get("download_button")) == 0
+    assert "重新确认字段映射" in _visible_text(app)
 
 
 def test_mapping_change_invalidates_old_standardization_preview() -> None:
