@@ -42,7 +42,16 @@ def _download_labels(app: AppTest) -> list[str]:
 
 
 def _visible_text(app: AppTest) -> str:
-    element_types = ("caption", "info", "markdown", "title", "warning", "text")
+    element_types = (
+        "caption",
+        "error",
+        "info",
+        "markdown",
+        "success",
+        "title",
+        "warning",
+        "text",
+    )
     values: list[str] = []
     for element_type in element_types:
         values.extend(str(element.value) for element in app.get(element_type))
@@ -120,6 +129,33 @@ def _submit_mapping(app: AppTest) -> AppTest:
         button for button in app.button if button.label == "确认字段映射"
     ).click()
     return app.run()
+
+
+def _generate_standardization_preview(app: AppTest) -> AppTest:
+    next(
+        button for button in app.button if button.label == "生成标准化预览"
+    ).click()
+    return app.run()
+
+
+def _mapping_role_selectbox(app: AppTest, role: str):
+    return next(
+        selectbox
+        for selectbox in app.selectbox
+        if selectbox.label.startswith(f"{role} ·")
+    )
+
+
+def _set_mapping_and_submit(
+    app: AppTest,
+    *,
+    basis: str,
+    roles: dict[str, str],
+) -> AppTest:
+    _mapping_basis_selectbox(app).set_value(basis)
+    for role, column_name in roles.items():
+        _mapping_role_selectbox(app, role).set_value(column_name)
+    return _submit_mapping(app)
 
 
 def test_home_page_is_default_and_has_no_analysis_charts() -> None:
@@ -320,6 +356,224 @@ def test_general_nav_mapping_can_be_explicitly_confirmed_without_analysis() -> N
     assert len(app.get("metric")) == 0
     assert len(app.get("plotly_chart")) == 0
     assert len(app.get("download_button")) == 0
+
+
+def test_standardization_button_requires_confirmed_mapping() -> None:
+    app = _open_general_csv(
+        "trade_date,strategy_return\n"
+        "2026-01-01,0.01\n"
+        "2026-01-02,-0.02\n"
+    )
+
+    assert not app.exception
+    assert "生成标准化预览" not in [button.label for button in app.button]
+
+
+def test_confirmed_mapping_shows_button_but_does_not_run_automatically() -> None:
+    app = _open_general_csv(
+        "trade_date,strategy_return\n"
+        "2026-01-01,0.01\n"
+        "2026-01-02,-0.02\n"
+        "2026-01-03,0.03\n"
+    )
+    _submit_mapping(app)
+    page_text = _visible_text(app)
+
+    assert "生成标准化预览" in [button.label for button in app.button]
+    assert "尚未生成预览" in page_text
+    assert "预检摘要" not in page_text
+
+
+def test_return_standardization_preview_is_read_only_and_has_no_analysis_outputs() -> None:
+    app = _open_general_csv(
+        "trade_date,strategy_return,benchmark_return,strategy_nav\n"
+        "2026-01-01,0.01,0.005,1.00\n"
+        "2026-01-02,-0.02,-0.01,0.98\n"
+        "2026-01-03,0.03,0.02,1.0094\n"
+        "2026-01-04,0.01,0.005,1.019494\n"
+    )
+    _set_mapping_and_submit(
+        app,
+        basis="策略收益率为主",
+        roles={"date": "trade_date", "strategy_return": "strategy_return"},
+    )
+    _generate_standardization_preview(app)
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    assert "标准化转换与预检" in page_text
+    assert "标准化分析候选表（前 20 行）" in page_text
+    assert "当前尚未执行绩效计算、图表生成、报告生成或结果导出" in page_text
+    summary = next(
+        item.value
+        for item in app.dataframe
+        if item.value.columns.tolist() == ["项目", "结果"]
+    ).set_index("项目")["结果"]
+    assert summary["标准化结构类型"] == "收益率分析候选表"
+    assert summary["分析候选字段"] == "date、strategy_return、benchmark_return"
+    assert "strategy_nav" in summary["诊断字段"]
+    candidate_frames = [
+        item.value
+        for item in app.dataframe
+        if item.value.columns.tolist()
+        == ["date", "strategy_return", "benchmark_return"]
+    ]
+    assert len(candidate_frames) == 1
+    assert "strategy_nav" not in candidate_frames[0]
+    assert len(app.get("metric")) == 0
+    assert len(app.get("plotly_chart")) == 0
+    assert len(app.get("download_button")) == 0
+    assert "累计收益率" not in page_text
+    assert "净值图" not in page_text
+    assert "回撤图" not in page_text
+
+
+def test_nav_standardization_preview_uses_nav_candidate_structure() -> None:
+    app = _open_general_csv(
+        "trade_date,strategy_nav,daily_ret,benchmark_nav\n"
+        "2026-01-01,1.00,0.00,100.0\n"
+        "2026-01-02,0.98,-0.02,99.0\n"
+        "2026-01-03,1.0094,0.03,101.0\n"
+        "2026-01-04,1.019494,0.01,102.0\n"
+    )
+    _set_mapping_and_submit(
+        app,
+        basis="策略净值为主",
+        roles={
+            "date": "trade_date",
+            "strategy_nav": "strategy_nav",
+            "daily_ret": "daily_ret",
+        },
+    )
+    _generate_standardization_preview(app)
+
+    assert not app.exception
+    candidate_frames = [
+        item.value
+        for item in app.dataframe
+        if item.value.columns.tolist() == ["date", "nav_strat", "daily_ret"]
+    ]
+    assert len(candidate_frames) == 1
+    assert "strategy_return" not in candidate_frames[0]
+    assert all("benchmark_return" not in item.value.columns for item in app.dataframe)
+
+
+def test_standardization_blocking_issues_are_visible_without_exception() -> None:
+    app = _open_general_csv(
+        "trade_date,strategy_return\n"
+        "2026-01-01,0.01\n"
+        "01/02/2026,1.2%\n"
+        "2026-01-03,-1.0\n"
+    )
+    _set_mapping_and_submit(
+        app,
+        basis="策略收益率为主",
+        roles={"date": "trade_date", "strategy_return": "strategy_return"},
+    )
+    _generate_standardization_preview(app)
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    assert "标准化预检未通过" in page_text
+    issue_frames = [
+        item.value
+        for item in app.dataframe
+        if "问题代码" in item.value.columns
+    ]
+    assert len(issue_frames) == 1
+    assert {"date_unparseable", "numeric_unparseable", "return_at_or_below_minus_one"} <= set(
+        issue_frames[0]["问题代码"]
+    )
+
+
+def test_standardization_warnings_are_visible_without_claiming_analysis_complete() -> None:
+    app = _open_general_csv(
+        "trade_date,strategy_return\n"
+        "2026-01-01,0.01\n"
+        "2026-01-02,0.02\n"
+        "2026-01-03,0.03\n"
+        "2026-01-04,0.04\n"
+    )
+    _submit_mapping(app)
+    _generate_standardization_preview(app)
+    page_text = _visible_text(app)
+
+    assert not app.exception
+    summary = next(
+        item.value
+        for item in app.dataframe
+        if item.value.columns.tolist() == ["项目", "结果"]
+    )
+    assert "warning数量" in summary["项目"].tolist()
+    assert "标准化预检通过，可以在下一阶段进入现有严格协议验证" in page_text
+    assert "分析已经完成" not in page_text
+    assert "数据验证全部通过" not in page_text
+
+
+def test_mapping_change_invalidates_old_standardization_preview() -> None:
+    app = _open_general_csv(
+        "trade_date,strategy_return,alt_return\n"
+        "2026-01-01,0.01,0.02\n"
+        "2026-01-02,-0.02,-0.01\n"
+        "2026-01-03,0.03,0.01\n"
+    )
+    _submit_mapping(app)
+    _generate_standardization_preview(app)
+    assert "预检摘要" in _visible_text(app)
+
+    _mapping_role_selectbox(app, "strategy_return").set_value("alt_return").run()
+
+    assert not app.exception
+    assert "文件、解析设置或字段映射已变化，请重新生成标准化预览" in _visible_text(app)
+    assert "预检摘要" not in _visible_text(app)
+    assert "字段映射选择已变化，请重新确认字段映射" in _visible_text(app)
+
+
+def test_replacing_file_invalidates_old_standardization_preview() -> None:
+    app = _open_general_csv(
+        "trade_date,strategy_return\n"
+        "2026-01-01,0.01\n"
+        "2026-01-02,-0.02\n"
+        "2026-01-03,0.03\n"
+    )
+    _submit_mapping(app)
+    _generate_standardization_preview(app)
+
+    app.get("file_uploader")[0].upload(
+        "replacement.csv",
+        (
+            "trade_date,strategy_nav\n"
+            "2026-01-01,1.00\n"
+            "2026-01-02,0.98\n"
+            "2026-01-03,1.01\n"
+        ).encode("utf-8"),
+        "text/csv",
+    ).run()
+
+    assert not app.exception
+    assert "文件、解析设置或字段映射已变化，请重新生成标准化预览" in _visible_text(app)
+    assert "预检摘要" not in _visible_text(app)
+
+
+def test_switching_xlsx_sheet_invalidates_old_standardization_preview() -> None:
+    app = _open_page(_load_app(), "单实验分析")
+    app.radio(key="single_data_mode").set_value(
+        "通用文件导入（CSV/XLSX）"
+    ).run()
+    app.get("file_uploader")[0].upload(
+        "mapping.xlsx",
+        _mapping_multisheet_xlsx(),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ).run()
+    app.selectbox(key="general_xlsx_sheet").set_value("收益表").run()
+    _submit_mapping(app)
+    _generate_standardization_preview(app)
+
+    app.selectbox(key="general_xlsx_sheet").set_value("净值表").run()
+
+    assert not app.exception
+    assert "文件、解析设置或字段映射已变化，请重新生成标准化预览" in _visible_text(app)
+    assert "预检摘要" not in _visible_text(app)
 
 
 def test_switching_xlsx_sheet_invalidates_confirmed_mapping() -> None:
