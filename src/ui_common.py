@@ -116,6 +116,19 @@ def render_home_page() -> None:
             args=("多实验比较",),
         )
 
+    st.info(
+        "需要练习文件或线上回归样本？“参考文件”页提供经过完整性校验的"
+        "确定性合成 CSV/XLSX，以及明确分组的错误示例。"
+    )
+    st.button(
+        "查看参考文件",
+        icon=":material/folder_open:",
+        key="home_open_reference_files",
+        help="查看合成参考文件、推荐入口、字段映射和预期结果。",
+        on_click=_select_page,
+        args=("参考文件",),
+    )
+
     st.divider()
     st.subheader("如何使用")
     steps = (
@@ -163,8 +176,8 @@ def render_help_page() -> None:
         f"快速指南 · v{APP_VERSION}",
     )
 
-    single_tab, comparison_tab, errors_tab, privacy_tab = st.tabs(
-        ("单实验", "多实验", "常见错误", "数据处理")
+    single_tab, comparison_tab, reference_tab, errors_tab, privacy_tab = st.tabs(
+        ("单实验", "多实验", "参考文件", "常见错误", "数据处理")
     )
     with single_tab:
         st.subheader("完成一次单实验分析")
@@ -189,6 +202,17 @@ def render_help_page() -> None:
             "标准化 CSV 统一包含 date、strategy_return、strategy_nav 和 drawdown，"
             "用于确保多份实验按相同字段协议和共同交易日期比较。"
         )
+    with reference_tab:
+        st.subheader("参考文件")
+        st.write(
+            "App 的“参考文件”页提供正常模板和错误示例。正常模板用于学习上传、"
+            "字段确认和分析流程；错误示例用于理解系统的阻断机制，不应作为正常分析文件。"
+        )
+        st.info(
+            "所有参考文件均为确定性合成数据，不代表真实投资结果。下载后仍需由用户"
+            "主动上传，并核对字段含义、单位、主口径和分析范围。"
+        )
+        st.caption("下载参考文件不会自动切换页面、建立映射或启动分析。")
     with errors_tab:
         st.subheader("常见错误和解决方法")
         st.markdown(

@@ -10,6 +10,8 @@ Quant Research Workbench（量化研究实验台）是一个用于分析量化�
 2. 多实验比较：读取 2 至 6 份标准化分析 CSV，按真实共同交易日期重新计算并比较。
 3. 通用文件导入：读取 CSV 或 XLSX，确认解析设置、工作表和字段映射，主动生成标准化预览；预检通过后还需执行现有严格协议验证、勾选最终确认并点击“开始绩效分析”，才会复用现有指标、图表、报告和导出。
 
+公开 App 另提供独立“参考文件”页，集中展示 6 份正常参考文件和 5 份错误示例。所有文件均为确定性合成数据，只能由用户主动下载；下载不会自动上传、映射或分析。
+
 ## 快速启动
 
 在项目根目录打开 PowerShell：
@@ -53,6 +55,8 @@ Quant Research Workbench（量化研究实验台）是一个用于分析量化�
 - 下载比较指标、共同日期对齐净值和确定性比较报告；
 - 在当前会话中记录可选的实验名称、策略名称和研究备注；
 - 预览清洗后的前 20 行数据。
+- 下载经过文件大小和 SHA-256 完整性校验的确定性合成参考文件；
+- 按正常参考文件和错误示例分组查看推荐入口、主口径、字段映射及预期结果。
 
 资源限制：单实验文件和多实验中的每份文件最大 `20 MB`，每份表格最多 `200000` 行，通用导入最多 `500` 列，多实验最多 `6` 份文件。超限内容不会被截断、抽样或部分处理。
 
@@ -79,6 +83,14 @@ B.4A 只执行确定性日期、数值、收益率、净值和诊断字段预检
 B.4B 设置两道显式门禁。第一道由用户点击“执行严格协议验证”：收益率主口径把 `date`、`strategy_return` 和可选 `benchmark_return` 交给现有标准日收益协议；净值主口径把 `date`、`nav_strat` 和可选 `daily_ret` 交给现有净值适配器。严格验证通过后仍不计算绩效，用户必须核对单位、主口径和日期范围，勾选最终声明并点击“开始绩效分析”。之后才复用既有绩效、图表、摘要、Markdown 报告和标准化 CSV 导出；相同输入与现有直接上传采用同一计算口径。
 
 通用路径不会自动除以 `100`、修复、排序、去重、填充或删除数据，也不会用 `benchmark_nav` 生成 `benchmark_return`。文件、编码、分隔符、工作表、字段顺序、确认映射、主口径、标准化结果或协议版本变化后，严格验证和分析结果立即失效。
+
+### 参考文件库
+
+“参考文件”页提供标准收益率、中文/英文通用收益率、中文通用净值和多工作表 XLSX，同时在默认折叠区域提供百分号收益率、重复日期、含糊日期、倒序日期和非正净值错误示例。文件全部位于 `assets/reference_files/`，不包含真实证券、账户、机构或投资结果。
+
+App 只读取 `catalog.json` 明确列出的仓库静态文件，并在下载前按 `manifest.json` 复核文件大小和 SHA-256。路径必须是参考目录内的安全相对路径，不允许绝对路径、`..` 或符号链接逃逸。CSV 和 XLSX 均直接返回原始字节，不经过 DataFrame 重新导出，不生成临时文件，也不会自动切换分析页、建立映射或启动分析。
+
+错误示例只用于验证系统的阻断机制，不是正常分析模板。即使下载正常参考文件，用户仍需主动上传并核对字段含义、收益率或净值单位、主口径和分析范围；云端上传的隐私边界保持不变。
 
 ### 标准日频收益 CSV
 
@@ -199,8 +211,18 @@ Quant_Research_Workbench/
 │   ├── performance.py
 │   ├── reporting.py
 │   ├── comparison.py
+│   ├── reference_files.py
+│   ├── ui_reference_files.py
 │   ├── ui_single.py
 │   └── ui_comparison.py
+├── assets/
+│   └── reference_files/
+│       ├── catalog.json
+│       ├── manifest.json
+│       ├── expected_outcomes.csv
+│       ├── README.md
+│       ├── valid/
+│       └── error_examples/
 ├── data/
 │   ├── .gitkeep
 │   ├── example_daily_returns.csv
@@ -223,6 +245,7 @@ Quant_Research_Workbench/
     ├── test_field_mapping.py
     ├── test_standardization.py
     ├── test_analysis_bridge.py
+    ├── test_reference_files.py
     ├── test_data_loader.py
     ├── test_adapters.py
     ├── test_performance.py
