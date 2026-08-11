@@ -11,7 +11,6 @@ from src.ui_common import (
     render_sidebar_context,
 )
 
-
 st.set_page_config(
     page_title=APP_NAME,
     page_icon="📊",
@@ -53,11 +52,7 @@ try:
     else:
         render_home_page()
 except ImportError:
-    st.error(
-        "页面模块未能完成加载。这通常是 Streamlit 仍保留旧版 Python 模块缓存导致的。"
-    )
-    st.info(
-        "请完整停止旧服务，再根据当前运行环境重新执行 Streamlit 启动命令。"
-    )
+    st.error("页面模块未能完成加载。这通常是 Streamlit 仍保留旧版 Python 模块缓存导致的。")
+    st.info("请完整停止旧服务，再根据当前运行环境重新执行 Streamlit 启动命令。")
 
 render_page_footer()

@@ -9,7 +9,6 @@ import pandas as pd
 from src.config import MAX_ROWS_PER_FILE, SINGLE_FILE_MAX_MB
 from src.limits import get_source_filename, validate_file_size, validate_row_count
 
-
 REQUIRED_COLUMNS = ("date", "strategy_return")
 OPTIONAL_COLUMNS = ("benchmark_return",)
 ALLOWED_COLUMNS = set(REQUIRED_COLUMNS + OPTIONAL_COLUMNS)
@@ -46,9 +45,7 @@ def validate_returns_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     if raw_data.empty:
         raise DataValidationError("CSV 文件没有数据记录，请至少提供 2 条有效记录。")
 
-    missing_columns = [
-        column for column in REQUIRED_COLUMNS if column not in raw_data.columns
-    ]
+    missing_columns = [column for column in REQUIRED_COLUMNS if column not in raw_data.columns]
     if missing_columns:
         missing_text = "、".join(missing_columns)
         raise DataValidationError(f"CSV 缺少必需字段：{missing_text}。")
@@ -71,16 +68,12 @@ def validate_returns_data(raw_data: pd.DataFrame) -> pd.DataFrame:
         if missing_mask.any():
             raise DataValidationError(f"必需字段 {column} 存在缺失值，请补充后重试。")
 
-    parsed_dates = pd.to_datetime(
-        cleaned_data["date"], errors="coerce", format="mixed"
-    )
+    parsed_dates = pd.to_datetime(cleaned_data["date"], errors="coerce", format="mixed")
     if parsed_dates.isna().any():
         raise DataValidationError("date 字段包含无法识别的日期，请使用有效日期格式。")
     cleaned_data["date"] = parsed_dates
 
-    strategy_returns = pd.to_numeric(
-        cleaned_data["strategy_return"], errors="coerce"
-    )
+    strategy_returns = pd.to_numeric(cleaned_data["strategy_return"], errors="coerce")
     if strategy_returns.isna().any():
         raise DataValidationError("strategy_return 字段包含无法转换为数值的内容。")
     if not all(isfinite(value) for value in strategy_returns.to_numpy(dtype=float)):
@@ -97,14 +90,10 @@ def validate_returns_data(raw_data: pd.DataFrame) -> pd.DataFrame:
         benchmark_returns = pd.to_numeric(benchmark_values, errors="coerce")
         invalid_benchmark = ~benchmark_missing & benchmark_returns.isna()
         if invalid_benchmark.any():
-            raise DataValidationError(
-                "benchmark_return 字段包含无法转换为数值的内容。"
-            )
+            raise DataValidationError("benchmark_return 字段包含无法转换为数值的内容。")
         finite_benchmark = benchmark_returns.dropna().to_numpy(dtype=float)
         if not all(isfinite(value) for value in finite_benchmark):
-            raise DataValidationError(
-                "benchmark_return 字段只能包含有限数值，不能包含无穷大。"
-            )
+            raise DataValidationError("benchmark_return 字段只能包含有限数值，不能包含无穷大。")
         cleaned_data["benchmark_return"] = benchmark_returns.astype(float)
 
     if cleaned_data["date"].duplicated().any():

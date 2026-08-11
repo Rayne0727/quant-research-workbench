@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import ast
-from datetime import datetime, timezone
-from decimal import Decimal
 import inspect
+from datetime import UTC, datetime
+from decimal import Decimal
 from types import MappingProxyType
 
 import pandas as pd
 import pandas.testing as pdt
 import pytest
 
+import src.standardization as standardization_module
 from src.field_detection import ROLE_ORDER
 from src.field_mapping import (
     PRIMARY_BASIS_NAV,
@@ -19,7 +20,6 @@ from src.field_mapping import (
     ConfirmedMapping,
     build_mapping_source_key,
 )
-import src.standardization as standardization_module
 from src.standardization import (
     BLOCKING,
     MAPPING_KEY_POLICY_VERSION,
@@ -41,9 +41,7 @@ def _mapping(
     warnings: tuple[str, ...] = (),
     **overrides: str | None,
 ) -> ConfirmedMapping:
-    role_to_column: dict[str, str | None] = {
-        role: None for role in ROLE_ORDER
-    }
+    role_to_column: dict[str, str | None] = {role: None for role in ROLE_ORDER}
     role_to_column["date"] = "when"
     if primary_basis == PRIMARY_BASIS_RETURN:
         role_to_column["strategy_return"] = "ret"
@@ -79,11 +77,7 @@ def _return_frame() -> pd.DataFrame:
 
 
 def _codes(result: StandardizationResult, level: str | None = None) -> set[str]:
-    return {
-        issue.code
-        for issue in result.issues
-        if level is None or issue.level == level
-    }
+    return {issue.code for issue in result.issues if level is None or issue.level == level}
 
 
 def _issues(result: StandardizationResult, code: str):
@@ -145,12 +139,22 @@ def test_nav_primary_keeps_mapped_daily_ret_in_candidate_frame() -> None:
     (
         (
             PRIMARY_BASIS_RETURN,
-            {"strategy_nav": "nav", "benchmark_nav": "bench_nav", "drawdown": "dd", "daily_ret": "daily"},
+            {
+                "strategy_nav": "nav",
+                "benchmark_nav": "bench_nav",
+                "drawdown": "dd",
+                "daily_ret": "daily",
+            },
             ["strategy_nav", "benchmark_nav", "drawdown", "daily_ret"],
         ),
         (
             PRIMARY_BASIS_NAV,
-            {"strategy_return": "ret", "benchmark_return": "bench", "benchmark_nav": "bench_nav", "drawdown": "dd"},
+            {
+                "strategy_return": "ret",
+                "benchmark_return": "bench",
+                "benchmark_nav": "bench_nav",
+                "drawdown": "dd",
+            },
             ["strategy_return", "benchmark_return", "benchmark_nav", "drawdown"],
         ),
     ),
@@ -375,7 +379,7 @@ def test_timezone_dates_use_utc_rule_and_warn() -> None:
     frame = pd.DataFrame(
         {
             "when": [
-                datetime(2026, 1, 1, 8, tzinfo=timezone.utc),
+                datetime(2026, 1, 1, 8, tzinfo=UTC),
                 "2026-01-02T08:00:00+08:00",
             ],
             "ret": [0.01, 0.02],
@@ -489,7 +493,10 @@ def test_nav_not_starting_at_one_is_warning_not_blocking() -> None:
 )
 def test_nav_risk_patterns_generate_warnings(values: list[float], expected_code: str) -> None:
     frame = pd.DataFrame(
-        {"when": pd.date_range("2026-01-01", periods=len(values)).strftime("%Y-%m-%d"), "nav": values}
+        {
+            "when": pd.date_range("2026-01-01", periods=len(values)).strftime("%Y-%m-%d"),
+            "nav": values,
+        }
     )
 
     result = standardize_confirmed_mapping(frame, _mapping(PRIMARY_BASIS_NAV))
@@ -590,7 +597,9 @@ def test_auxiliary_strategy_fields_never_override_selected_basis() -> None:
         _mapping(PRIMARY_BASIS_NAV, strategy_return="ret"),
     )
 
-    assert return_result.analysis_frame["strategy_return"].tolist() == _return_frame()["ret"].tolist()
+    assert (
+        return_result.analysis_frame["strategy_return"].tolist() == _return_frame()["ret"].tolist()
+    )
     assert "strategy_nav" in return_result.diagnostic_frame
     assert nav_result.analysis_frame["nav_strat"].tolist() == _return_frame()["nav"].tolist()
     assert "strategy_return" in nav_result.diagnostic_frame
@@ -615,7 +624,15 @@ def test_mapping_key_includes_source_basis_all_roles_and_mapping_policy() -> Non
     changed_role = _mapping(benchmark_return="bench")
 
     assert MAPPING_KEY_POLICY_VERSION == "b3-confirmed-mapping-v1"
-    assert len({build_mapping_key(item) for item in (base, changed_source, changed_basis, changed_role)}) == 4
+    assert (
+        len(
+            {
+                build_mapping_key(item)
+                for item in (base, changed_source, changed_basis, changed_role)
+            }
+        )
+        == 4
+    )
 
 
 @pytest.mark.parametrize(

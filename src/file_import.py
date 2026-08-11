@@ -21,7 +21,6 @@ from src.limits import (
     validate_row_count,
 )
 
-
 SUPPORTED_EXTENSIONS = (".csv", ".xlsx")
 CSV_ENCODINGS = ("utf-8-sig", "utf-8", "gb18030")
 CSV_DELIMITERS = (",", "\t", ";", "|")
@@ -39,8 +38,7 @@ CSV_DELIMITER_DISPLAY = {
     "|": "竖线（|）",
 }
 CSV_ENCODING_ERROR = (
-    "无法识别CSV文本编码。当前支持UTF-8、UTF-8 BOM和GB18030，"
-    "请将文件另存为这些编码后重试。"
+    "无法识别CSV文本编码。当前支持UTF-8、UTF-8 BOM和GB18030，请将文件另存为这些编码后重试。"
 )
 
 
@@ -75,9 +73,7 @@ class ImportedTable:
 
 def read_uploaded_bytes(source: BinaryIO) -> tuple[str, bytes]:
     """在读取前检查上传大小，并返回不含本地路径的文件名和字节。"""
-    filename = _safe_filename(
-        get_source_filename(source, fallback="上传文件")
-    )
+    filename = _safe_filename(get_source_filename(source, fallback="上传文件"))
     _validate_extension(filename)
     validate_file_size(source, filename, SINGLE_FILE_MAX_MB)
 
@@ -109,9 +105,7 @@ def get_xlsx_sheet_names(file_name: str, content: bytes) -> tuple[str, ...]:
             "缺少Excel读取依赖openpyxl，请安装项目requirements.txt后重试。"
         ) from exc
     except Exception as exc:
-        raise FileImportError(
-            f"{safe_name}：XLSX文件无法读取，请确认文件有效且未损坏。"
-        ) from exc
+        raise FileImportError(f"{safe_name}：XLSX文件无法读取，请确认文件有效且未损坏。") from exc
 
     if not sheet_names:
         raise FileImportError(f"{safe_name}：XLSX文件没有可读取的工作表。")
@@ -156,10 +150,7 @@ def _validate_extension(file_name: str) -> str:
     safe_name = _safe_filename(file_name)
     extension = PureWindowsPath(safe_name).suffix.lower()
     if extension not in SUPPORTED_EXTENSIONS:
-        raise FileImportError(
-            f"{safe_name}：不支持的文件类型。"
-            "当前通用导入仅支持CSV和XLSX。"
-        )
+        raise FileImportError(f"{safe_name}：不支持的文件类型。当前通用导入仅支持CSV和XLSX。")
     return extension
 
 
@@ -180,13 +171,9 @@ def _import_csv(
     try:
         data = pd.read_csv(StringIO(text), sep=delimiter)
     except pd.errors.EmptyDataError as exc:
-        raise FileImportError(
-            "CSV文件为空，请提供第一行字段名和至少一行数据。"
-        ) from exc
+        raise FileImportError("CSV文件为空，请提供第一行字段名和至少一行数据。") from exc
     except pd.errors.ParserError as exc:
-        raise FileImportError(
-            "CSV文件无法解析，请检查当前分隔符和每行字段数量。"
-        ) from exc
+        raise FileImportError("CSV文件无法解析，请检查当前分隔符和每行字段数量。") from exc
     except (OSError, TypeError, ValueError) as exc:
         raise FileImportError("CSV文件读取失败，请确认内容有效且未损坏。") from exc
 
@@ -203,9 +190,7 @@ def _import_csv(
 
 def _decode_csv(content: bytes) -> tuple[str, str]:
     """按明确顺序解码 CSV，绝不忽略无效字节。"""
-    candidates = (
-        CSV_ENCODINGS if content.startswith(b"\xef\xbb\xbf") else CSV_ENCODINGS[1:]
-    )
+    candidates = CSV_ENCODINGS if content.startswith(b"\xef\xbb\xbf") else CSV_ENCODINGS[1:]
     for encoding in candidates:
         try:
             return content.decode(encoding), encoding
@@ -240,9 +225,7 @@ def _read_csv_header(text: str, delimiter: str) -> tuple[str, ...]:
     try:
         header = next(csv.reader(StringIO(text), delimiter=delimiter))
     except (csv.Error, StopIteration) as exc:
-        raise FileImportError(
-            "CSV文件没有可读取的表头，当前版本默认第一行为字段名。"
-        ) from exc
+        raise FileImportError("CSV文件没有可读取的表头，当前版本默认第一行为字段名。") from exc
     return tuple(str(value) for value in header)
 
 
@@ -281,8 +264,7 @@ def _import_xlsx(
         ) from exc
     except Exception as exc:
         raise FileImportError(
-            f"{file_name}：工作表“{selected_sheet}”无法读取，"
-            "请确认XLSX文件有效且未损坏。"
+            f"{file_name}：工作表“{selected_sheet}”无法读取，请确认XLSX文件有效且未损坏。"
         ) from exc
 
     if raw_header.empty:
@@ -324,25 +306,16 @@ def _build_result(
     validate_row_count(data, file_name, MAX_ROWS_PER_FILE)
     if len(data.columns) > MAX_COLUMNS_PER_FILE:
         raise UploadLimitError(
-            f"{file_name}：数据列数为 {len(data.columns)}，"
-            f"超过允许上限 {MAX_COLUMNS_PER_FILE} 列。"
+            f"{file_name}：数据列数为 {len(data.columns)}，超过允许上限 {MAX_COLUMNS_PER_FILE} 列。"
         )
 
     column_names = tuple(str(column) for column in data.columns)
     header_counts = Counter(original_headers)
-    duplicate_names = tuple(
-        name for name, count in header_counts.items() if count > 1
-    )
+    duplicate_names = tuple(name for name, count in header_counts.items() if count > 1)
     empty_names = tuple(name for name in original_headers if not name.strip())
-    whitespace_names = tuple(
-        name for name in original_headers if name and name != name.strip()
-    )
-    unnamed_columns = tuple(
-        name for name in column_names if name.startswith("Unnamed:")
-    )
-    fully_empty_columns = tuple(
-        str(column) for column in data.columns if data[column].isna().all()
-    )
+    whitespace_names = tuple(name for name in original_headers if name and name != name.strip())
+    unnamed_columns = tuple(name for name in column_names if name.startswith("Unnamed:"))
+    fully_empty_columns = tuple(str(column) for column in data.columns if data[column].isna().all())
     mixed_type_columns = tuple(
         str(column) for column in data.columns if _has_mixed_types(data[column])
     )
@@ -379,9 +352,7 @@ def _build_result(
 
 def _has_mixed_types(series: pd.Series) -> bool:
     """保守识别同列中的数值、文本、日期等混合值，仅用于提示。"""
-    value_kinds = {
-        _value_kind(value) for value in series.dropna().tolist() if str(value).strip()
-    }
+    value_kinds = {_value_kind(value) for value in series.dropna().tolist() if str(value).strip()}
     return len(value_kinds) > 1
 
 
@@ -411,9 +382,7 @@ def _build_warnings(
     """生成中文基础字段提示，不修复或删除任何行列。"""
     warnings: list[str] = []
     if whitespace_names:
-        warnings.append(
-            f"字段名称首尾包含空格：{'、'.join(whitespace_names)}。"
-        )
+        warnings.append(f"字段名称首尾包含空格：{'、'.join(whitespace_names)}。")
     if duplicate_names:
         warnings.append(
             "存在重复字段名称："
@@ -424,13 +393,11 @@ def _build_warnings(
         warnings.append("存在空字段名；当前版本不会自动命名或删除对应列。")
     if unnamed_columns:
         warnings.append(
-            f"发现自动生成的Unnamed字段：{'、'.join(unnamed_columns)}；"
-            "当前版本不会自动删除。"
+            f"发现自动生成的Unnamed字段：{'、'.join(unnamed_columns)}；当前版本不会自动删除。"
         )
     if fully_empty_columns:
         warnings.append(
-            f"完全为空的字段：{'、'.join(fully_empty_columns)}；"
-            "当前版本只提示，不会删除。"
+            f"完全为空的字段：{'、'.join(fully_empty_columns)}；当前版本只提示，不会删除。"
         )
     if mixed_type_columns:
         warnings.append(

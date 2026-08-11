@@ -1,13 +1,11 @@
 """计算日频策略收益的基础绩效指标。"""
 
 from math import isclose, isfinite, sqrt
-from typing import TypeAlias
 
 import pandas as pd
 
-
 TRADING_DAYS_PER_YEAR = 252
-MetricValue: TypeAlias = float | int | pd.Timestamp | None
+MetricValue = float | int | pd.Timestamp | None
 
 
 class PerformanceCalculationError(ValueError):
@@ -19,9 +17,7 @@ def calculate_nav(returns: pd.Series) -> pd.Series:
     numeric_returns = pd.to_numeric(returns, errors="coerce").astype(float)
     if numeric_returns.empty:
         raise PerformanceCalculationError("没有可用于计算累计净值的收益数据。")
-    if numeric_returns.isna().any() or not all(
-        isfinite(value) for value in numeric_returns
-    ):
+    if numeric_returns.isna().any() or not all(isfinite(value) for value in numeric_returns):
         raise PerformanceCalculationError("收益数据包含 NaN 或无穷大，无法计算累计净值。")
     if (numeric_returns <= -1).any():
         raise PerformanceCalculationError("收益率不能小于或等于 -1。")
@@ -58,9 +54,7 @@ def add_performance_series(data: pd.DataFrame) -> pd.DataFrame:
     result["drawdown"] = calculate_drawdown(result["strategy_nav"])
 
     if "benchmark_return" in result.columns:
-        benchmark_returns = pd.to_numeric(
-            result["benchmark_return"], errors="coerce"
-        ).astype(float)
+        benchmark_returns = pd.to_numeric(result["benchmark_return"], errors="coerce").astype(float)
         result["benchmark_nav"] = (1 + benchmark_returns).cumprod(skipna=False)
         finite_values = result["benchmark_nav"].dropna().to_numpy(dtype=float)
         if not all(isfinite(value) for value in finite_values):
@@ -91,18 +85,12 @@ def calculate_performance_metrics(data: pd.DataFrame) -> dict[str, MetricValue]:
     annualized_return = _finite_or_none(annualized_value)
 
     daily_volatility = float(strategy_returns.std(ddof=1))
-    annualized_volatility = _finite_or_none(
-        daily_volatility * sqrt(TRADING_DAYS_PER_YEAR)
-    )
+    annualized_volatility = _finite_or_none(daily_volatility * sqrt(TRADING_DAYS_PER_YEAR))
     if isclose(daily_volatility, 0.0, abs_tol=1e-15, rel_tol=0.0):
         sharpe_ratio = None
     else:
         sharpe_ratio = _finite_or_none(
-            float(
-                strategy_returns.mean()
-                / daily_volatility
-                * sqrt(TRADING_DAYS_PER_YEAR)
-            )
+            float(strategy_returns.mean() / daily_volatility * sqrt(TRADING_DAYS_PER_YEAR))
         )
 
     metrics: dict[str, MetricValue] = {
@@ -134,9 +122,7 @@ def add_nav_performance_series(data: pd.DataFrame) -> pd.DataFrame:
         raise PerformanceCalculationError("缺少 strategy_nav，无法计算净值绩效。")
 
     result = data.copy()
-    strategy_nav = pd.to_numeric(result["strategy_nav"], errors="coerce").astype(
-        float
-    )
+    strategy_nav = pd.to_numeric(result["strategy_nav"], errors="coerce").astype(float)
     result["drawdown"] = calculate_drawdown(strategy_nav)
     return result
 
@@ -155,9 +141,7 @@ def calculate_nav_performance_metrics(
 
     performance_data = add_nav_performance_series(data)
     strategy_nav = performance_data["strategy_nav"].astype(float)
-    valid_returns = pd.to_numeric(
-        performance_data["strategy_return"], errors="coerce"
-    ).dropna()
+    valid_returns = pd.to_numeric(performance_data["strategy_return"], errors="coerce").dropna()
     if valid_returns.empty:
         raise PerformanceCalculationError("没有有效的净值推导收益可用于绩效计算。")
     if not all(isfinite(value) for value in valid_returns):
@@ -168,9 +152,7 @@ def calculate_nav_performance_metrics(
     final_nav = float(strategy_nav.iloc[-1])
     cumulative_return = final_nav - 1
     try:
-        annualized_value = final_nav ** (
-            TRADING_DAYS_PER_YEAR / n_return_days
-        ) - 1
+        annualized_value = final_nav ** (TRADING_DAYS_PER_YEAR / n_return_days) - 1
     except OverflowError:
         annualized_value = float("inf")
 
@@ -180,18 +162,12 @@ def calculate_nav_performance_metrics(
         sharpe_ratio = None
     else:
         daily_volatility = float(valid_returns.std(ddof=1))
-        annualized_volatility = _finite_or_none(
-            daily_volatility * sqrt(TRADING_DAYS_PER_YEAR)
-        )
+        annualized_volatility = _finite_or_none(daily_volatility * sqrt(TRADING_DAYS_PER_YEAR))
         if isclose(daily_volatility, 0.0, abs_tol=1e-15, rel_tol=0.0):
             sharpe_ratio = None
         else:
             sharpe_ratio = _finite_or_none(
-                float(
-                    valid_returns.mean()
-                    / daily_volatility
-                    * sqrt(TRADING_DAYS_PER_YEAR)
-                )
+                float(valid_returns.mean() / daily_volatility * sqrt(TRADING_DAYS_PER_YEAR))
             )
 
     return {

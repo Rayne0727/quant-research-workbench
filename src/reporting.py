@@ -1,23 +1,20 @@
 """生成确定性的中文分析摘要、Markdown 报告和标准化数据导出。"""
 
+import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from math import isclose, isfinite
-import re
-from typing import Mapping
 
 import pandas as pd
 
 from src.adapters import DailyReturnDiagnostics
 from src.performance import calculate_drawdown
 
-
 FIXED_DISCLAIMER = (
-    "以上结果仅基于上传数据及当前计算口径生成，用于研究记录和结果核验，"
-    "不构成投资建议。"
+    "以上结果仅基于上传数据及当前计算口径生成，用于研究记录和结果核验，不构成投资建议。"
 )
 COMPARISON_DISCLAIMER = (
-    "比较结果仅基于所上传数据的共同日期及当前计算口径，用于研究记录和结果核验，"
-    "不构成投资建议。"
+    "比较结果仅基于所上传数据的共同日期及当前计算口径，用于研究记录和结果核验，不构成投资建议。"
 )
 INVALID_FILENAME_CHARACTERS = re.compile(r'[\\/:*?"<>|]')
 
@@ -61,10 +58,7 @@ def generate_analysis_summary(context: ReportContext) -> str:
     overview_lines.extend(
         [
             f"- 数据格式：{context.data_format}",
-            (
-                f"- 日期范围：{_format_date(context.start_date)} 至 "
-                f"{_format_date(context.end_date)}"
-            ),
+            (f"- 日期范围：{_format_date(context.start_date)} 至 {_format_date(context.end_date)}"),
             f"- 数据观察日数：{context.observation_count}",
             f"- 有效收益日数：{context.valid_return_count}",
             f"- 主要计算字段：{context.primary_field}",
@@ -76,16 +70,10 @@ def generate_analysis_summary(context: ReportContext) -> str:
     performance_lines = [
         f"- 累计收益：{_format_percentage(context.metrics.get('cumulative_return'))}",
         f"- 年化收益：{_format_percentage(context.metrics.get('annualized_return'))}",
-        (
-            "- 年化波动率："
-            f"{_format_percentage(context.metrics.get('annualized_volatility'))}"
-        ),
+        (f"- 年化波动率：{_format_percentage(context.metrics.get('annualized_volatility'))}"),
         f"- 夏普比率：{_format_number(context.metrics.get('sharpe_ratio'))}",
         f"- 最大回撤：{_format_percentage(context.metrics.get('max_drawdown'))}",
-        (
-            "- 盈利日占比："
-            f"{_format_percentage(context.metrics.get('positive_day_ratio'))}"
-        ),
+        (f"- 盈利日占比：{_format_percentage(context.metrics.get('positive_day_ratio'))}"),
     ]
 
     sections: list[tuple[str, list[str]]] = [
@@ -94,12 +82,8 @@ def generate_analysis_summary(context: ReportContext) -> str:
     ]
 
     if context.has_benchmark:
-        strategy_return = _finite_number(
-            context.metrics.get("cumulative_return")
-        )
-        benchmark_return = _finite_number(
-            context.metrics.get("benchmark_cumulative_return")
-        )
+        strategy_return = _finite_number(context.metrics.get("cumulative_return"))
+        benchmark_return = _finite_number(context.metrics.get("benchmark_cumulative_return"))
         period_difference = (
             strategy_return - benchmark_return
             if strategy_return is not None and benchmark_return is not None
@@ -134,14 +118,8 @@ def generate_analysis_summary(context: ReportContext) -> str:
                 f"- daily_ret 有效比较数量：{diagnostics.comparison_count}",
                 f"- daily_ret 不一致日期数量：{diagnostics.mismatch_count}",
                 f"- daily_ret 不一致比例：{mismatch_ratio:.2%}",
-                (
-                    "- 最大绝对差异："
-                    f"{_format_basis_points(diagnostics.max_absolute_difference)}"
-                ),
-                (
-                    "- 平均绝对差异："
-                    f"{_format_basis_points(diagnostics.mean_absolute_difference)}"
-                ),
+                (f"- 最大绝对差异：{_format_basis_points(diagnostics.max_absolute_difference)}"),
+                (f"- 平均绝对差异：{_format_basis_points(diagnostics.mean_absolute_difference)}"),
                 "- 当前分析仍以nav_strat为准。",
             ]
         )
@@ -151,9 +129,7 @@ def generate_analysis_summary(context: ReportContext) -> str:
     sections.append(("固定声明", [FIXED_DISCLAIMER]))
 
     lines: list[str] = []
-    for section_number, (section_title, section_lines) in enumerate(
-        sections, start=1
-    ):
+    for section_number, (section_title, section_lines) in enumerate(sections, start=1):
         if lines:
             lines.append("")
         lines.append(f"### {section_number}. {section_title}")
@@ -175,27 +151,12 @@ def generate_markdown_report(context: ReportContext) -> str:
         "",
         "| 指标 | 结果 |",
         "| --- | ---: |",
-        (
-            "| 累计收益 | "
-            f"{_format_percentage(context.metrics.get('cumulative_return'))} |"
-        ),
-        (
-            "| 年化收益 | "
-            f"{_format_percentage(context.metrics.get('annualized_return'))} |"
-        ),
-        (
-            "| 年化波动率 | "
-            f"{_format_percentage(context.metrics.get('annualized_volatility'))} |"
-        ),
+        (f"| 累计收益 | {_format_percentage(context.metrics.get('cumulative_return'))} |"),
+        (f"| 年化收益 | {_format_percentage(context.metrics.get('annualized_return'))} |"),
+        (f"| 年化波动率 | {_format_percentage(context.metrics.get('annualized_volatility'))} |"),
         f"| 夏普比率 | {_format_number(context.metrics.get('sharpe_ratio'))} |",
-        (
-            "| 最大回撤 | "
-            f"{_format_percentage(context.metrics.get('max_drawdown'))} |"
-        ),
-        (
-            "| 盈利日占比 | "
-            f"{_format_percentage(context.metrics.get('positive_day_ratio'))} |"
-        ),
+        (f"| 最大回撤 | {_format_percentage(context.metrics.get('max_drawdown'))} |"),
+        (f"| 盈利日占比 | {_format_percentage(context.metrics.get('positive_day_ratio'))} |"),
         "",
         "## 确定性分析摘要",
         "",
@@ -249,8 +210,7 @@ def generate_comparison_summary(context: ComparisonReportContext) -> str:
     )
     if sharpe_names:
         result_lines.append(
-            "- 夏普比率最高："
-            f"{'、'.join(sharpe_names)}（{_format_number(sharpe_value)}）"
+            f"- 夏普比率最高：{'、'.join(sharpe_names)}（{_format_number(sharpe_value)}）"
         )
 
     sections: list[tuple[str, list[str]]] = [
@@ -261,10 +221,7 @@ def generate_comparison_summary(context: ComparisonReportContext) -> str:
         sections.append(
             (
                 "数据限制",
-                [
-                    "- 当前共同样本交易日较少，年化收益、年化波动率和夏普比率"
-                    "对短期表现较敏感。"
-                ],
+                ["- 当前共同样本交易日较少，年化收益、年化波动率和夏普比率对短期表现较敏感。"],
             )
         )
     sections.append(("固定声明", [COMPARISON_DISCLAIMER]))
@@ -337,9 +294,7 @@ def generate_comparison_markdown_report(
 def build_standardized_data(data: pd.DataFrame) -> pd.DataFrame:
     """选择并复制标准化分析字段，不修改输入 DataFrame。"""
     required_columns = ["date", "strategy_return", "strategy_nav", "drawdown"]
-    missing_columns = [
-        column for column in required_columns if column not in data.columns
-    ]
+    missing_columns = [column for column in required_columns if column not in data.columns]
     if missing_columns:
         raise ValueError(f"标准化数据缺少字段：{', '.join(missing_columns)}")
 
@@ -348,27 +303,19 @@ def build_standardized_data(data: pd.DataFrame) -> pd.DataFrame:
         export_columns.extend(["benchmark_return", "benchmark_nav"])
 
     standardized_data = data.loc[:, export_columns].copy(deep=True)
-    normalized_nav = (
-        pd.to_numeric(standardized_data["strategy_nav"], errors="raise")
-        / float(standardized_data["strategy_nav"].iloc[0])
+    normalized_nav = pd.to_numeric(standardized_data["strategy_nav"], errors="raise") / float(
+        standardized_data["strategy_nav"].iloc[0]
     )
     standardized_data["strategy_nav"] = normalized_nav
-    standardized_data["strategy_return"] = normalized_nav.pct_change(
-        fill_method=None
-    )
+    standardized_data["strategy_return"] = normalized_nav.pct_change(fill_method=None)
     standardized_data["drawdown"] = calculate_drawdown(normalized_nav)
     if "benchmark_nav" in standardized_data.columns:
-        normalized_benchmark = (
-            pd.to_numeric(standardized_data["benchmark_nav"], errors="raise")
-            / float(standardized_data["benchmark_nav"].iloc[0])
-        )
+        normalized_benchmark = pd.to_numeric(
+            standardized_data["benchmark_nav"], errors="raise"
+        ) / float(standardized_data["benchmark_nav"].iloc[0])
         standardized_data["benchmark_nav"] = normalized_benchmark
-        standardized_data["benchmark_return"] = normalized_benchmark.pct_change(
-            fill_method=None
-        )
-    standardized_data["date"] = pd.to_datetime(
-        standardized_data["date"]
-    ).dt.strftime("%Y-%m-%d")
+        standardized_data["benchmark_return"] = normalized_benchmark.pct_change(fill_method=None)
+    standardized_data["date"] = pd.to_datetime(standardized_data["date"]).dt.strftime("%Y-%m-%d")
     return standardized_data
 
 
@@ -389,28 +336,20 @@ def sanitize_filename_component(value: str) -> str:
 def make_report_filename(experiment_name: str) -> str:
     """生成安全的 Markdown 报告文件名。"""
     safe_name = sanitize_filename_component(experiment_name)
-    return (
-        f"{safe_name}_analysis_report.md"
-        if safe_name
-        else "quant_analysis_report.md"
-    )
+    return f"{safe_name}_analysis_report.md" if safe_name else "quant_analysis_report.md"
 
 
 def make_standardized_data_filename(experiment_name: str) -> str:
     """生成安全的标准化 CSV 文件名。"""
     safe_name = sanitize_filename_component(experiment_name)
-    return (
-        f"{safe_name}_standardized_data.csv"
-        if safe_name
-        else "quant_standardized_data.csv"
-    )
+    return f"{safe_name}_standardized_data.csv" if safe_name else "quant_standardized_data.csv"
 
 
 def _finite_number(value: object) -> float | None:
     """将有效有限数值转换为 float，否则返回 None。"""
     try:
         numeric_value = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return numeric_value if isfinite(numeric_value) else None
 
@@ -451,15 +390,9 @@ def _find_extreme_experiments(
         return [], None
 
     target = (
-        max(row[2] for row in valid_rows)
-        if mode == "max"
-        else min(row[2] for row in valid_rows)
+        max(row[2] for row in valid_rows) if mode == "max" else min(row[2] for row in valid_rows)
     )
-    tied_rows = [
-        row
-        for row in valid_rows
-        if isclose(row[2], target, rel_tol=1e-12, abs_tol=1e-12)
-    ]
+    tied_rows = [row for row in valid_rows if isclose(row[2], target, rel_tol=1e-12, abs_tol=1e-12)]
     return [row[0] for row in tied_rows], tied_rows[0][1]
 
 
@@ -469,13 +402,9 @@ def _render_numbered_sections(
     """将非空章节按实际顺序连续编号。"""
     lines: list[str] = []
     non_empty_sections = [
-        (section_title, section_lines)
-        for section_title, section_lines in sections
-        if section_lines
+        (section_title, section_lines) for section_title, section_lines in sections if section_lines
     ]
-    for section_number, (section_title, section_lines) in enumerate(
-        non_empty_sections, start=1
-    ):
+    for section_number, (section_title, section_lines) in enumerate(non_empty_sections, start=1):
         if lines:
             lines.append("")
         lines.append(f"### {section_number}. {section_title}")

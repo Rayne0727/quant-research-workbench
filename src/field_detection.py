@@ -7,14 +7,14 @@ turn a suggestion into an established field mapping.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 import math
 import re
 import unicodedata
-from typing import Final, Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
+from typing import Final
 
 import pandas as pd
-
 
 MAX_PROFILE_SAMPLE_SIZE: Final = 10_000
 MAX_CROSS_FIELD_CHECKS: Final = 3
@@ -251,10 +251,7 @@ def _bounded_non_null_sample(series: pd.Series) -> pd.Series:
     if count <= MAX_PROFILE_SAMPLE_SIZE:
         return non_null.copy(deep=False)
     denominator = MAX_PROFILE_SAMPLE_SIZE - 1
-    positions = [
-        index * (count - 1) // denominator
-        for index in range(MAX_PROFILE_SAMPLE_SIZE)
-    ]
+    positions = [index * (count - 1) // denominator for index in range(MAX_PROFILE_SAMPLE_SIZE)]
     return non_null.iloc[positions].copy(deep=False)
 
 
@@ -296,9 +293,7 @@ def _build_profile(column_name: str, series: pd.Series) -> ColumnProfile:
     numeric_count = int(numeric.notna().sum())
     numeric_ratio = numeric_count / analyzed_count if analyzed_count else 0.0
     finite_values = [
-        float(value)
-        for value in numeric.dropna().tolist()
-        if math.isfinite(float(value))
+        float(value) for value in numeric.dropna().tolist() if math.isfinite(float(value))
     ]
     finite_count = len(finite_values)
     all_finite_numeric = bool(analyzed_count) and finite_count == analyzed_count
@@ -328,9 +323,7 @@ def _build_profile(column_name: str, series: pd.Series) -> ColumnProfile:
         monotonic_increasing = False
         monotonic_decreasing = False
 
-    semantic_kinds = {
-        _semantic_kind(value) for value in sample.tolist() if str(value).strip()
-    }
+    semantic_kinds = {_semantic_kind(value) for value in sample.tolist() if str(value).strip()}
     numeric_kinds = {"numeric", "numeric_text"}
     mixed_types = len(semantic_kinds) > 1 and not semantic_kinds.issubset(numeric_kinds)
 
@@ -389,9 +382,7 @@ def _base_messages(
     reasons: list[str] = []
     warnings: list[str] = []
     if score:
-        reasons.append(
-            f"字段名“{profile.column_name}”与 {role} 的确定性别名规则匹配。"
-        )
+        reasons.append(f"字段名“{profile.column_name}”与 {role} 的确定性别名规则匹配。")
     if profile.mixed_types:
         warnings.append("样本中存在混合类型，建议人工核对原始字段。")
     if profile.non_null_ratio < 0.5:
@@ -447,9 +438,7 @@ def _score_return(
 ) -> tuple[int, list[str], list[str]]:
     score, reasons, warnings = _base_messages(role, profile)
     normalized = profile.normalized_name
-    if _contains_any(normalized, _NAV_HINTS) or _contains_any(
-        normalized, _DRAWDOWN_HINTS
-    ):
+    if _contains_any(normalized, _NAV_HINTS) or _contains_any(normalized, _DRAWDOWN_HINTS):
         warnings.append("字段名包含净值、价格或回撤含义，与收益率角色冲突。")
         score -= 30
     if profile.numeric_ratio >= 0.95:
@@ -485,9 +474,7 @@ def _score_nav(
 ) -> tuple[int, list[str], list[str]]:
     score, reasons, warnings = _base_messages(role, profile)
     normalized = profile.normalized_name
-    if _contains_any(normalized, _RETURN_HINTS) or _contains_any(
-        normalized, _DRAWDOWN_HINTS
-    ):
+    if _contains_any(normalized, _RETURN_HINTS) or _contains_any(normalized, _DRAWDOWN_HINTS):
         warnings.append("字段名包含收益或回撤含义，与净值角色冲突。")
         score -= 35
     if "累计收益" in normalized:
@@ -619,9 +606,7 @@ def _build_suggestion(
     recommended = ordered[0] if ordered and ordered[0].score >= MIN_RECOMMENDATION_SCORE else None
     close_warning: str | None = None
     if recommended is not None:
-        alternatives = tuple(
-            candidate for candidate in ordered[1:3] if candidate.score >= 25
-        )
+        alternatives = tuple(candidate for candidate in ordered[1:3] if candidate.score >= 25)
         if (
             alternatives
             and alternatives[0].score >= MIN_RECOMMENDATION_SCORE

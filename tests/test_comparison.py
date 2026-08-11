@@ -1,7 +1,7 @@
 """标准化多实验比较的验证、对齐、指标和报告测试。"""
 
-from io import BytesIO, StringIO
 import re
+from io import BytesIO, StringIO
 
 import pandas as pd
 import pytest
@@ -52,9 +52,7 @@ def _datasets(count: int = 2) -> list[tuple[str, pd.DataFrame]]:
 
 def _report_context(result) -> ComparisonReportContext:
     return ComparisonReportContext(
-        experiment_names=tuple(
-            experiment.name for experiment in result.experiments
-        ),
+        experiment_names=tuple(experiment.name for experiment in result.experiments),
         coverage_table=result.coverage_table,
         metrics_table=result.metrics_table,
         common_start_date=result.common_start_date,
@@ -66,9 +64,7 @@ def _report_context(result) -> ComparisonReportContext:
 
 def test_two_valid_standardized_csv_files_can_be_compared() -> None:
     csv_one = _standardized_data().to_csv(index=False)
-    csv_two = _standardized_data(returns=[0.005, 0.001, -0.002]).to_csv(
-        index=False
-    )
+    csv_two = _standardized_data(returns=[0.005, 0.001, -0.002]).to_csv(index=False)
 
     result = load_and_compare_standardized_files(
         [
@@ -102,7 +98,7 @@ def test_missing_required_column_fails() -> None:
 
 
 def test_empty_csv_fails_with_filename() -> None:
-    with pytest.raises(ComparisonValidationError, match="empty.csv.*文件为空"):
+    with pytest.raises(ComparisonValidationError, match=r"empty\.csv.*文件为空"):
         load_and_compare_standardized_files(
             [
                 ("empty.csv", StringIO("")),
@@ -236,9 +232,7 @@ def test_common_dates_are_calculated_correctly() -> None:
 
     result = compare_standardized_datasets([("first.csv", first), ("second.csv", second)])
 
-    assert result.common_dates.tolist() == pd.to_datetime(
-        ["2026-01-02", "2026-01-05"]
-    ).tolist()
+    assert result.common_dates.tolist() == pd.to_datetime(["2026-01-02", "2026-01-05"]).tolist()
 
 
 def test_common_dates_use_set_intersection_not_calendar_range() -> None:
@@ -253,9 +247,7 @@ def test_common_dates_use_set_intersection_not_calendar_range() -> None:
 
     result = compare_standardized_datasets([("first.csv", first), ("second.csv", second)])
 
-    assert result.common_dates.tolist() == pd.to_datetime(
-        ["2026-01-01", "2026-01-05"]
-    ).tolist()
+    assert result.common_dates.tolist() == pd.to_datetime(["2026-01-01", "2026-01-05"]).tolist()
 
 
 def test_missing_dates_are_not_filled() -> None:
@@ -282,12 +274,8 @@ def test_missing_dates_are_not_filled() -> None:
 
 
 def test_fewer_than_two_common_observation_days_fails() -> None:
-    first = _standardized_data(
-        dates=["2026-01-01", "2026-01-02"], returns=[0.01]
-    )
-    second = _standardized_data(
-        dates=["2026-01-02", "2026-01-03"], returns=[0.01]
-    )
+    first = _standardized_data(dates=["2026-01-01", "2026-01-02"], returns=[0.01])
+    second = _standardized_data(dates=["2026-01-02", "2026-01-03"], returns=[0.01])
 
     with pytest.raises(ComparisonValidationError, match="共同净值观察日少于 2"):
         compare_standardized_datasets([("first.csv", first), ("second.csv", second)])
@@ -324,9 +312,7 @@ def test_metrics_are_recalculated_for_common_period() -> None:
     result = compare_standardized_datasets(_datasets())
 
     for row in result.metrics_table.itertuples(index=False):
-        final_nav = result.aligned_experiments[row.experiment_name][
-            "comparison_nav"
-        ].iloc[-1]
+        final_nav = result.aligned_experiments[row.experiment_name]["comparison_nav"].iloc[-1]
         assert row.cumulative_return == pytest.approx(final_nav - 1)
 
 
@@ -352,15 +338,12 @@ def test_duplicate_experiment_names_fail() -> None:
 
 def test_filename_removes_standardized_data_suffix() -> None:
     assert (
-        extract_experiment_name("phase3_B5_ridge_F3_standardized_data.csv")
-        == "phase3_B5_ridge_F3"
+        extract_experiment_name("phase3_B5_ridge_F3_standardized_data.csv") == "phase3_B5_ridge_F3"
     )
 
 
 def test_experiment_name_is_sanitized_and_limited() -> None:
-    name = extract_experiment_name(
-        f" {'a' * 120}:bad_standardized_data.csv"
-    )
+    name = extract_experiment_name(f" {'a' * 120}:bad_standardized_data.csv")
 
     assert len(name) == 100
     assert ":" not in name
@@ -434,10 +417,7 @@ def test_comparison_report_contains_fixed_disclaimer() -> None:
 def test_comparison_report_section_numbering_is_continuous() -> None:
     result = compare_standardized_datasets(_datasets())
     report = generate_comparison_markdown_report(_report_context(result))
-    numbers = [
-        int(number)
-        for number in re.findall(r"^### (\d+)\.", report, flags=re.MULTILINE)
-    ]
+    numbers = [int(number) for number in re.findall(r"^### (\d+)\.", report, flags=re.MULTILINE)]
 
     assert numbers == list(range(1, len(numbers) + 1))
 
@@ -462,17 +442,13 @@ def test_aligned_nav_csv_contains_date_and_all_experiments() -> None:
 def test_validation_error_contains_filename() -> None:
     data = _standardized_data().drop(columns="drawdown")
 
-    with pytest.raises(ComparisonValidationError, match="named_file.csv"):
+    with pytest.raises(ComparisonValidationError, match=r"named_file\.csv"):
         validate_standardized_data(data, "named_file.csv")
 
 
 def test_comparison_sample_data_is_fixed_and_has_long_common_period() -> None:
-    first_result = compare_standardized_datasets(
-        generate_comparison_sample_data()
-    )
-    second_result = compare_standardized_datasets(
-        generate_comparison_sample_data()
-    )
+    first_result = compare_standardized_datasets(generate_comparison_sample_data())
+    second_result = compare_standardized_datasets(generate_comparison_sample_data())
 
     assert first_result.common_nav_observations >= 120
     assert first_result.metrics_table["cumulative_return"].nunique() == 3

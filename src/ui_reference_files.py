@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 import streamlit as st
 
@@ -17,18 +17,15 @@ from src.reference_files import (
 )
 from src.ui_common import PUBLIC_PRIVACY_NOTICE, render_page_header
 
-
 LIBRARY_ERROR_MESSAGE = "参考文件清单或完整性校验失败，所有下载已禁用。"
 ERROR_EXAMPLES_WARNING = (
-    "以下文件故意包含不明确或不安全的数据，用于演示系统的阻断行为，"
-    "不应作为正常分析模板。"
+    "以下文件故意包含不明确或不安全的数据，用于演示系统的阻断行为，不应作为正常分析模板。"
 )
 
 
 def _mapping_text(entry: ReferenceFileEntry) -> str:
     return "；".join(
-        f"{column_name} → {role}"
-        for role, column_name in entry.recommended_mapping.items()
+        f"{column_name} → {role}" for role, column_name in entry.recommended_mapping.items()
     )
 
 
@@ -135,8 +132,7 @@ def render_reference_files_page() -> None:
 
     st.subheader("参考文件")
     st.write(
-        "选择文件前先核对推荐入口、主口径和字段映射。下载完成后，"
-        "请由你主动前往相应分析入口上传。"
+        "选择文件前先核对推荐入口、主口径和字段映射。下载完成后，请由你主动前往相应分析入口上传。"
     )
     for entry in catalog.by_group("valid"):
         _render_valid_file(entry, manifest)
@@ -155,6 +151,4 @@ def render_reference_files_page() -> None:
         "3. 有效文件应按清单完成对应流程；错误示例应在标明的阶段被阻断。  \n"
         "4. 下载文件只用于验证当前公开版本，不替代对真实数据定义和单位的核对。"
     )
-    st.caption(
-        f"参考包：{catalog.pack_version} · 文件下载前均校验大小与 SHA-256。"
-    )
+    st.caption(f"参考包：{catalog.pack_version} · 文件下载前均校验大小与 SHA-256。")

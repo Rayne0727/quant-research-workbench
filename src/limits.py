@@ -5,7 +5,6 @@ from typing import Any
 
 import pandas as pd
 
-
 BYTES_PER_MB = 1024 * 1024
 
 
@@ -30,8 +29,7 @@ def validate_file_size(source: object, filename: str, max_mb: int) -> None:
     if size_bytes > max_bytes:
         actual_mb = size_bytes / BYTES_PER_MB
         raise UploadLimitError(
-            f"{filename}：文件大小为 {actual_mb:.2f} MB，"
-            f"超过允许上限 {max_mb} MB。"
+            f"{filename}：文件大小为 {actual_mb:.2f} MB，超过允许上限 {max_mb} MB。"
         )
 
 
@@ -43,10 +41,7 @@ def validate_row_count(
     """检查 CSV 数据行数，超限时不截断或抽样。"""
     row_count = len(data)
     if row_count > max_rows:
-        raise UploadLimitError(
-            f"{filename}：数据行数为 {row_count}，"
-            f"超过允许上限 {max_rows} 行。"
-        )
+        raise UploadLimitError(f"{filename}：数据行数为 {row_count}，超过允许上限 {max_rows} 行。")
 
 
 def _get_size_bytes(source: object) -> int | None:
@@ -78,6 +73,6 @@ def _get_size_bytes(source: object) -> int | None:
             size_bytes = int(tell())
             seek(original_position)
             return size_bytes
-        except (OSError, TypeError, ValueError):
+        except OSError, TypeError, ValueError:
             return None
     return None

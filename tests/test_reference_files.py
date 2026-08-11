@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import shutil
 import socket
 import urllib.request
+from pathlib import Path
 
-from openpyxl import Workbook
 import pandas as pd
 import pytest
+from openpyxl import Workbook
 
 import src.reference_files as reference_files
+from src import ui_reference_files
 from src.reference_files import (
     ALLOWED_FILE_TYPES,
     DOCUMENTED_SUPPORT_FILES,
@@ -27,8 +28,6 @@ from src.reference_files import (
     validate_reference_catalog,
     validate_reference_manifest,
 )
-from src import ui_reference_files
-
 
 REFERENCE_ROOT = Path("assets/reference_files")
 
@@ -212,9 +211,10 @@ def test_download_bytes_match_static_files_exactly() -> None:
     manifest = load_reference_manifest(catalog)
 
     for entry in catalog.files:
-        assert load_reference_file_bytes(entry, manifest) == resolve_reference_file(
-            entry.relative_path
-        ).read_bytes()
+        assert (
+            load_reference_file_bytes(entry, manifest)
+            == resolve_reference_file(entry.relative_path).read_bytes()
+        )
 
 
 def test_csv_download_does_not_use_dataframe_export(
@@ -298,7 +298,11 @@ def test_manifest_loading_is_deterministic_and_repeatable() -> None:
 
 def test_loading_reference_library_does_not_modify_files() -> None:
     before = {
-        path: (path.stat().st_size, path.stat().st_mtime_ns, hashlib.sha256(path.read_bytes()).hexdigest())
+        path: (
+            path.stat().st_size,
+            path.stat().st_mtime_ns,
+            hashlib.sha256(path.read_bytes()).hexdigest(),
+        )
         for path in REFERENCE_ROOT.rglob("*")
         if path.is_file()
     }
@@ -307,7 +311,11 @@ def test_loading_reference_library_does_not_modify_files() -> None:
     for entry in catalog.files:
         load_reference_file_bytes(entry, manifest)
     after = {
-        path: (path.stat().st_size, path.stat().st_mtime_ns, hashlib.sha256(path.read_bytes()).hexdigest())
+        path: (
+            path.stat().st_size,
+            path.stat().st_mtime_ns,
+            hashlib.sha256(path.read_bytes()).hexdigest(),
+        )
         for path in REFERENCE_ROOT.rglob("*")
         if path.is_file()
     }

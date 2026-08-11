@@ -3,9 +3,8 @@
 from io import BytesIO
 from pathlib import Path
 
-from openpyxl import Workbook
-import pandas as pd
 import pytest
+from openpyxl import Workbook
 
 from src.config import SINGLE_FILE_MAX_MB
 from src.file_import import (
@@ -65,18 +64,14 @@ def test_reads_utf8_csv() -> None:
 
 
 def test_reads_utf8_bom_csv() -> None:
-    result = import_table(
-        "returns.csv", "日期,收益\n2026-01-01,0.01\n".encode("utf-8-sig")
-    )
+    result = import_table("returns.csv", "日期,收益\n2026-01-01,0.01\n".encode("utf-8-sig"))
 
     assert result.encoding == "utf-8-sig"
     assert result.column_names == ("日期", "收益")
 
 
 def test_reads_gb18030_csv() -> None:
-    result = import_table(
-        "returns.csv", "日期,策略\n2026-01-01,上涨\n".encode("gb18030")
-    )
+    result = import_table("returns.csv", "日期,策略\n2026-01-01,上涨\n".encode("gb18030"))
 
     assert result.encoding == "gb18030"
     assert result.dataframe.iloc[0, 1] == "上涨"
@@ -162,18 +157,14 @@ def test_gets_multiple_xlsx_sheet_names_in_workbook_order() -> None:
 
 
 def test_multiple_xlsx_sheets_require_explicit_selection() -> None:
-    content = _xlsx_bytes(
-        {"first": [["value"], [1]], "second": [["value"], [2]]}
-    )
+    content = _xlsx_bytes({"first": [["value"], [1]], "second": [["value"], [2]]})
 
     with pytest.raises(FileImportError, match="请先明确选择"):
         import_table("table.xlsx", content)
 
 
 def test_reads_explicitly_selected_xlsx_sheet() -> None:
-    content = _xlsx_bytes(
-        {"first": [["value"], [1]], "second": [["value"], [2]]}
-    )
+    content = _xlsx_bytes({"first": [["value"], [1]], "second": [["value"], [2]]})
 
     result = import_table("table.xlsx", content, sheet_name="second")
 
@@ -195,7 +186,7 @@ def test_hidden_xlsx_sheet_is_listed_and_readable() -> None:
 def test_empty_xlsx_sheet_fails() -> None:
     content = _xlsx_bytes({"empty": []})
 
-    with pytest.raises(FileImportError, match="工作表.*为空"):
+    with pytest.raises(FileImportError, match=r"工作表.*为空"):
         import_table("empty.xlsx", content)
 
 
@@ -217,7 +208,7 @@ def test_xlsx_without_sheet_names_fails(
     class _WorkbookWithoutSheets:
         sheet_names: tuple[str, ...] = ()
 
-        def __enter__(self) -> "_WorkbookWithoutSheets":
+        def __enter__(self) -> _WorkbookWithoutSheets:
             return self
 
         def __exit__(self, *args: object) -> None:
@@ -254,7 +245,7 @@ def test_row_limit_fails_without_truncation(monkeypatch: pytest.MonkeyPatch) -> 
 
     with pytest.raises(
         UploadLimitError,
-        match="数据行数为 2.*允许上限 1 行",
+        match=r"数据行数为 2.*允许上限 1 行",
     ):
         import_table("rows.csv", b"value\n1\n2\n")
 
@@ -266,7 +257,7 @@ def test_column_limit_fails_without_truncation(
 
     with pytest.raises(
         UploadLimitError,
-        match="数据列数为 3.*允许上限 2 列",
+        match=r"数据列数为 3.*允许上限 2 列",
     ):
         import_table("columns.csv", b"a,b,c\n1,2,3\n")
 

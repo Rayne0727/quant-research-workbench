@@ -172,9 +172,7 @@ def test_positive_values_alone_do_not_create_high_nav_confidence() -> None:
 
 def test_consistent_nav_and_return_add_consistency_reason() -> None:
     returns = _returns()
-    dataframe = pd.DataFrame(
-        {"portfolio_return": returns, "strategy_nav": _nav(returns)}
-    )
+    dataframe = pd.DataFrame({"portfolio_return": returns, "strategy_nav": _nav(returns)})
     result = detect_field_candidates(dataframe)
     candidate = result.suggestions["strategy_return"].recommended
 
@@ -199,9 +197,7 @@ def test_inconsistent_nav_and_return_add_risk_warning() -> None:
 def test_consistent_drawdown_and_nav_add_consistency_reason() -> None:
     returns = _returns()
     nav = _nav(returns)
-    dataframe = pd.DataFrame(
-        {"strategy_nav": nav, "drawdown": nav / nav.cummax() - 1}
-    )
+    dataframe = pd.DataFrame({"strategy_nav": nav, "drawdown": nav / nav.cummax() - 1})
     result = detect_field_candidates(dataframe)
     candidate = result.suggestions["drawdown"].recommended
 
@@ -243,17 +239,13 @@ def test_below_threshold_is_reported_as_unrecognized() -> None:
 
 
 def test_same_input_returns_identical_result() -> None:
-    dataframe = pd.DataFrame(
-        {"trade_date": _dates(), "portfolio_return": _returns()}
-    )
+    dataframe = pd.DataFrame({"trade_date": _dates(), "portfolio_return": _returns()})
 
     assert detect_field_candidates(dataframe) == detect_field_candidates(dataframe)
 
 
 def test_input_dataframe_is_not_modified() -> None:
-    dataframe = pd.DataFrame(
-        {"Trade Date": _dates().astype(str), "Return": _returns()}
-    )
+    dataframe = pd.DataFrame({"Trade Date": _dates().astype(str), "Return": _returns()})
     original = dataframe.copy(deep=True)
 
     detect_field_candidates(dataframe)
@@ -296,7 +288,10 @@ def test_column_profile_reports_expected_statistics() -> None:
 
 
 def test_name_normalization_is_unicode_aware_and_deterministic() -> None:
-    assert normalize_field_name("\ufeff Ｔｒａｄｅ  Date--Value.. ") == "trade_date_value"
+    assert (
+        normalize_field_name("\ufeff \uff34\uff52\uff41\uff44\uff45  Date--Value.. ")
+        == "trade_date_value"
+    )
 
 
 def test_mixed_type_profile_adds_warning_to_named_candidate() -> None:
@@ -367,9 +362,7 @@ def test_each_role_exposes_at_most_three_candidates() -> None:
 
     for role in ROLE_ORDER:
         suggestion = result.suggestions[role]
-        total = (1 if suggestion.recommended is not None else 0) + len(
-            suggestion.alternatives
-        )
+        total = (1 if suggestion.recommended is not None else 0) + len(suggestion.alternatives)
         assert total <= 3
 
 
@@ -381,5 +374,5 @@ def test_empty_dataframe_returns_all_roles_as_unrecognized() -> None:
 
 
 def test_rejects_non_dataframe_input() -> None:
-    with pytest.raises(TypeError, match="pandas.DataFrame"):
+    with pytest.raises(TypeError, match=r"pandas\.DataFrame"):
         detect_field_candidates([])  # type: ignore[arg-type]

@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from src import ui_comparison, ui_single
 from src.comparison import (
     load_and_compare_standardized_files,
     validate_standardized_data,
@@ -25,7 +26,6 @@ from src.templates import (
     generate_comparison_template_csv,
     generate_daily_returns_template_csv,
 )
-from src import ui_comparison, ui_single
 
 
 class OversizedUpload:
@@ -60,13 +60,9 @@ def test_v020_release_documents_are_present_and_current() -> None:
     assert changelog.is_file()
     assert release_notes.is_file()
     assert "## v0.2.0 — 2026-08-04" in changelog.read_text(encoding="utf-8")
-    assert "# Quant Research Workbench v0.2.0" in release_notes.read_text(
-        encoding="utf-8"
-    )
+    assert "# Quant Research Workbench v0.2.0" in release_notes.read_text(encoding="utf-8")
     assert "当前版本：**v0.2.0 公开功能版本**" in readme_text
-    assert checklist_text.startswith(
-        "# Quant Research Workbench v0.2.0 发布检查清单"
-    )
+    assert checklist_text.startswith("# Quant Research Workbench v0.2.0 发布检查清单")
     assert "本文档对应 `v0.2.0`" in protocol_text
     assert "当前尚未创建远程仓库" not in deployment_text
     assert "GitHub 远程仓库已经存在" in deployment_text
@@ -105,30 +101,20 @@ def test_comparison_template_first_row_protocol() -> None:
 def test_comparison_template_return_and_drawdown_are_consistent() -> None:
     template = build_comparison_template_data()
     expected_return = template["strategy_nav"].pct_change(fill_method=None)
-    expected_drawdown = (
-        template["strategy_nav"] / template["strategy_nav"].cummax() - 1
-    )
+    expected_drawdown = template["strategy_nav"] / template["strategy_nav"].cummax() - 1
 
-    pd.testing.assert_series_equal(
-        template["strategy_return"], expected_return, check_names=False
-    )
-    pd.testing.assert_series_equal(
-        template["drawdown"], expected_drawdown, check_names=False
-    )
+    pd.testing.assert_series_equal(template["strategy_return"], expected_return, check_names=False)
+    pd.testing.assert_series_equal(template["drawdown"], expected_drawdown, check_names=False)
 
 
 def test_comparison_template_passes_existing_validation() -> None:
-    experiment = validate_standardized_data(
-        build_comparison_template_data(), "template.csv"
-    )
+    experiment = validate_standardized_data(build_comparison_template_data(), "template.csv")
 
     assert len(experiment.data) == 4
 
 
 def test_single_file_size_limit_fails_before_reading() -> None:
-    upload = OversizedUpload(
-        "large_single.csv", (SINGLE_FILE_MAX_MB + 1) * BYTES_PER_MB
-    )
+    upload = OversizedUpload("large_single.csv", (SINGLE_FILE_MAX_MB + 1) * BYTES_PER_MB)
 
     with pytest.raises(
         UploadLimitError,
@@ -139,9 +125,7 @@ def test_single_file_size_limit_fails_before_reading() -> None:
 
 def test_oversized_file_in_comparison_fails_with_filename() -> None:
     valid_csv = generate_comparison_template_csv()
-    oversized = OversizedUpload(
-        "large_comparison.csv", (COMPARISON_FILE_MAX_MB + 1) * BYTES_PER_MB
-    )
+    oversized = OversizedUpload("large_comparison.csv", (COMPARISON_FILE_MAX_MB + 1) * BYTES_PER_MB)
 
     with pytest.raises(
         UploadLimitError,
@@ -159,17 +143,12 @@ def test_row_limit_fails_with_actual_count_filename_and_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("src.data_loader.MAX_ROWS_PER_FILE", 2)
-    csv_text = StringIO(
-        "date,strategy_return\n"
-        "2026-01-01,0.01\n"
-        "2026-01-02,0.02\n"
-        "2026-01-03,0.03\n"
-    )
+    csv_text = StringIO("date,strategy_return\n2026-01-01,0.01\n2026-01-02,0.02\n2026-01-03,0.03\n")
     csv_text.name = "too_many_rows.csv"  # type: ignore[attr-defined]
 
     with pytest.raises(
         UploadLimitError,
-        match="too_many_rows.csv.*数据行数为 3.*允许上限 2 行",
+        match=r"too_many_rows\.csv.*数据行数为 3.*允许上限 2 行",
     ):
         load_returns_csv(csv_text)
 

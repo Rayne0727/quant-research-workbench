@@ -7,12 +7,13 @@ and treats the source DataFrame as read-only.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
 import math
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Final, Mapping, Sequence
+from typing import Final
 
 import pandas as pd
 
@@ -23,7 +24,6 @@ from src.field_detection import (
     DetectionResult,
     FieldCandidate,
 )
-
 
 PRIMARY_BASIS_RETURN: Final = "strategy_return"
 PRIMARY_BASIS_NAV: Final = "strategy_nav"
@@ -97,10 +97,7 @@ def _freeze_scores(
     values: Mapping[str, Mapping[str, int]],
 ) -> Mapping[str, Mapping[str, int]]:
     return MappingProxyType(
-        {
-            role: MappingProxyType(dict(scores))
-            for role, scores in values.items()
-        }
+        {role: MappingProxyType(dict(scores)) for role, scores in values.items()}
     )
 
 
@@ -209,9 +206,7 @@ def build_suggested_mapping(
 
     ordered_columns = tuple(str(column) for column in columns)
     valid_columns = set(ordered_columns)
-    role_to_column: dict[str, str | None] = {
-        role: None for role in ROLE_ORDER
-    }
+    role_to_column: dict[str, str | None] = {role: None for role in ROLE_ORDER}
     recommended_by_role: dict[str, str | None] = {}
     candidate_scores: dict[str, dict[str, int]] = {}
     reserved_columns: set[str] = set()
@@ -219,9 +214,7 @@ def build_suggested_mapping(
     for role in ROLE_ORDER:
         suggestion = detection_result.suggestions[role]
         recommended = suggestion.recommended
-        recommended_by_role[role] = (
-            recommended.column_name if recommended is not None else None
-        )
+        recommended_by_role[role] = recommended.column_name if recommended is not None else None
         candidate_scores[role] = {
             candidate.column_name: candidate.score
             for candidate in _all_candidates(detection_result, role)
@@ -237,9 +230,7 @@ def build_suggested_mapping(
     return_is_unique = _has_unique_high_candidate(
         "strategy_return", detection_result, valid_columns
     )
-    nav_is_unique = _has_unique_high_candidate(
-        "strategy_nav", detection_result, valid_columns
-    )
+    nav_is_unique = _has_unique_high_candidate("strategy_nav", detection_result, valid_columns)
     primary_basis: str | None = None
     if return_is_unique and not nav_is_unique:
         primary_basis = PRIMARY_BASIS_RETURN
@@ -264,10 +255,7 @@ def update_mapping_draft(
 ) -> MappingDraft:
     """Create a user-edited draft without mutating the original suggestion."""
 
-    choices = {
-        role: role_to_column.get(role)
-        for role in ROLE_ORDER
-    }
+    choices = {role: role_to_column.get(role) for role in ROLE_ORDER}
     return MappingDraft(
         source_key=suggested_draft.source_key,
         primary_basis=primary_basis,
@@ -343,9 +331,7 @@ def _cross_field_warnings(
             continue
         nav = pd.to_numeric(nav_source, errors="coerce")
         observed_return = pd.to_numeric(return_source, errors="coerce")
-        agreement, count = _agreement_ratio(
-            nav.pct_change(fill_method=None), observed_return
-        )
+        agreement, count = _agreement_ratio(nav.pct_change(fill_method=None), observed_return)
         if count >= 3 and agreement < 0.5:
             warnings.append(
                 f"{label}收益率与{label}净值推导收益存在明显差异，请人工核对口径和单位。"
@@ -364,9 +350,7 @@ def _cross_field_warnings(
                 observed_drawdown,
             )
             if count >= 3 and agreement < 0.5:
-                warnings.append(
-                    "回撤序列与策略净值推导结果存在明显差异，请人工核对定义。"
-                )
+                warnings.append("回撤序列与策略净值推导结果存在明显差异，请人工核对定义。")
     return warnings
 
 
@@ -389,22 +373,16 @@ def validate_mapping(
 
     if import_issues.duplicate_column_names:
         duplicate_names = "、".join(
-            name or "（空字段名）"
-            for name in import_issues.duplicate_column_names
+            name or "（空字段名）" for name in import_issues.duplicate_column_names
         )
-        errors.append(
-            f"原始文件存在无法可靠区分的重复字段名：{duplicate_names}。"
-        )
+        errors.append(f"原始文件存在无法可靠区分的重复字段名：{duplicate_names}。")
 
     dataframe_names = tuple(str(column) for column in dataframe.columns)
     duplicate_dataframe_names = sorted(
         {name for name in dataframe_names if dataframe_names.count(name) > 1}
     )
     if duplicate_dataframe_names:
-        errors.append(
-            "当前读取结果仍包含重复字段名："
-            f"{'、'.join(duplicate_dataframe_names)}。"
-        )
+        errors.append(f"当前读取结果仍包含重复字段名：{'、'.join(duplicate_dataframe_names)}。")
 
     required_roles = _required_roles(basis)
     for role in required_roles:
@@ -432,51 +410,36 @@ def validate_mapping(
             continue
         selected_series[role] = series
         profile = column_profiles.get(column_name)
-        if series.isna().all() or (
-            profile is not None and profile.non_null_count == 0
-        ):
+        if series.isna().all() or (profile is not None and profile.non_null_count == 0):
             errors.append(f"{role} 选择的字段“{column_name}”完全为空。")
         if column_name != column_name.strip():
             warnings.append(f"字段“{column_name}”首尾包含空格，请人工核对。")
         if column_name in import_issues.unnamed_columns or column_name.startswith("Unnamed:"):
             if role in required_roles:
-                errors.append(
-                    f"必需角色 {role} 不能使用自动生成的空表头字段“{column_name}”。"
-                )
+                errors.append(f"必需角色 {role} 不能使用自动生成的空表头字段“{column_name}”。")
             else:
-                warnings.append(
-                    f"{role} 使用了自动生成的 Unnamed 字段“{column_name}”。"
-                )
+                warnings.append(f"{role} 使用了自动生成的 Unnamed 字段“{column_name}”。")
 
     for column_name, roles in selected_by_column.items():
         if len(roles) > 1:
-            errors.append(
-                f"原始字段“{column_name}”被映射到多个角色："
-                f"{', '.join(roles)}。"
-            )
+            errors.append(f"原始字段“{column_name}”被映射到多个角色：{', '.join(roles)}。")
 
     for role, series in selected_series.items():
         column_name = mapping_draft.role_to_column[role]
         non_null = series.dropna()
         score = mapping_draft.candidate_scores.get(role, {}).get(column_name)
         if score is not None and 45 <= score < 65:
-            warnings.append(
-                f"{role} 选择了 B.2 低置信度候选“{column_name}”（{score} 分）。"
-            )
+            warnings.append(f"{role} 选择了 B.2 低置信度候选“{column_name}”（{score} 分）。")
         recommended = mapping_draft.recommended_by_role.get(role)
         if recommended is not None and column_name != recommended:
-            warnings.append(
-                f"{role} 选择的“{column_name}”与 B.2 首选建议“{recommended}”不同。"
-            )
+            warnings.append(f"{role} 选择的“{column_name}”与 B.2 首选建议“{recommended}”不同。")
         if role == "date":
             parsed = pd.to_datetime(non_null, errors="coerce", format="mixed")
             valid_count = int(parsed.notna().sum())
             if valid_count == 0:
                 errors.append(f"日期字段“{column_name}”没有任何可解析日期值。")
             elif valid_count < len(non_null):
-                warnings.append(
-                    f"日期字段“{column_name}”存在无法解析的值。"
-                )
+                warnings.append(f"日期字段“{column_name}”存在无法解析的值。")
             continue
 
         if role not in NUMERIC_ROLES:
@@ -487,9 +450,7 @@ def validate_mapping(
             errors.append(f"数值角色 {role} 的字段“{column_name}”没有任何可转换数值。")
             continue
         if valid_count < len(non_null):
-            warnings.append(
-                f"数值字段“{column_name}”存在无法转换的值。"
-            )
+            warnings.append(f"数值字段“{column_name}”存在无法转换的值。")
         finite = _numeric_sample(series)
         if role in RETURN_ROLES and not finite.empty:
             large_ratio = float((finite.abs() > 1).mean())
@@ -499,13 +460,9 @@ def validate_mapping(
                     "可能存在百分数单位风险；系统不会自动换算。"
                 )
             if bool((finite > 0).all()):
-                warnings.append(
-                    f"收益字段“{column_name}”全部为正，请确认业务含义。"
-                )
+                warnings.append(f"收益字段“{column_name}”全部为正，请确认业务含义。")
         if role in NAV_ROLES and not finite.empty and bool((finite <= 0).any()):
-            warnings.append(
-                f"净值字段“{column_name}”包含非正数，请确认数据定义。"
-            )
+            warnings.append(f"净值字段“{column_name}”包含非正数，请确认数据定义。")
 
     if (
         mapping_draft.role_to_column.get("strategy_return")
@@ -554,7 +511,4 @@ def is_confirmed_mapping_current(
 ) -> bool:
     """Return whether a session-only confirmation belongs to this source."""
 
-    return bool(
-        confirmed_mapping is not None
-        and confirmed_mapping.source_key == source_key
-    )
+    return bool(confirmed_mapping is not None and confirmed_mapping.source_key == source_key)

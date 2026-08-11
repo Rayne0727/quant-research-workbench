@@ -23,12 +23,8 @@ def generate_sample_data() -> pd.DataFrame:
         0.004,
     ]
 
-    sample_data = pd.DataFrame(
-        {"date": dates, "daily_return": daily_returns}
-    )
-    sample_data["cumulative_return"] = (
-        1 + sample_data["daily_return"]
-    ).cumprod() - 1
+    sample_data = pd.DataFrame({"date": dates, "daily_return": daily_returns})
+    sample_data["cumulative_return"] = (1 + sample_data["daily_return"]).cumprod() - 1
     return sample_data
 
 
@@ -115,10 +111,7 @@ def _build_standardized_sample(
             phase_return = 0.00045
         shock_return = -0.0045 * drawdown_scale if index in shock_points else 0.0
         return_values.append(
-            base_return
-            + phase_return
-            + shock_return
-            + random_source.gauss(0.0, volatility)
+            base_return + phase_return + shock_return + random_source.gauss(0.0, volatility)
         )
 
     strategy_return = pd.Series(return_values, dtype=float)

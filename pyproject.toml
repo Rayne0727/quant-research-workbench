@@ -1,0 +1,10 @@
+[tool.ruff]
+required-version = "==0.16.2"
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "RUF"]
+# Audited punctuation used in natural Chinese UI text and docstrings. RUF001,
+# RUF002, and RUF003 remain enabled for every non-whitelisted confusable.
+allowed-confusables = ["（", "）", "，", "：", "；", "？"]
