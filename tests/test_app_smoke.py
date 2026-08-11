@@ -1,13 +1,13 @@
 """Streamlit 公共导航与示例流程烟雾测试。"""
 
-from dataclasses import replace
 import json
+import tomllib
+from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
-import tomllib
 
-from openpyxl import Workbook
 import pytest
+from openpyxl import Workbook
 from streamlit.testing.v1 import AppTest
 
 from src.config import APP_NAME, APP_VERSION
@@ -16,7 +16,6 @@ from src.ui_common import (
     RESEARCH_DISCLAIMER,
     SIDEBAR_PRIVACY_NOTICE,
 )
-
 
 SENSITIVE_WARNING_TERMS = (
     "请勿上传",
@@ -97,9 +96,7 @@ def _mapping_multisheet_xlsx() -> bytes:
 
 def _open_general_csv(content: str) -> AppTest:
     app = _open_page(_load_app(), "单实验分析")
-    app.radio(key="single_data_mode").set_value(
-        "通用文件导入（CSV/XLSX）"
-    ).run()
+    app.radio(key="single_data_mode").set_value("通用文件导入（CSV/XLSX）").run()
     app.get("file_uploader")[0].upload(
         "mapping.csv",
         content.encode("utf-8"),
@@ -109,40 +106,28 @@ def _open_general_csv(content: str) -> AppTest:
 
 
 def _mapping_basis_selectbox(app: AppTest):
-    return next(
-        selectbox
-        for selectbox in app.selectbox
-        if selectbox.label == "策略分析主口径"
-    )
+    return next(selectbox for selectbox in app.selectbox if selectbox.label == "策略分析主口径")
 
 
 def _mapping_acknowledgement(app: AppTest):
     return next(
-        checkbox
-        for checkbox in app.checkbox
-        if checkbox.label.startswith("我已核对字段含义")
+        checkbox for checkbox in app.checkbox if checkbox.label.startswith("我已核对字段含义")
     )
 
 
 def _submit_mapping(app: AppTest) -> AppTest:
     _mapping_acknowledgement(app).set_value(True)
-    next(
-        button for button in app.button if button.label == "确认字段映射"
-    ).click()
+    next(button for button in app.button if button.label == "确认字段映射").click()
     return app.run()
 
 
 def _generate_standardization_preview(app: AppTest) -> AppTest:
-    next(
-        button for button in app.button if button.label == "生成标准化预览"
-    ).click()
+    next(button for button in app.button if button.label == "生成标准化预览").click()
     return app.run()
 
 
 def _execute_strict_validation(app: AppTest) -> AppTest:
-    next(
-        button for button in app.button if button.label == "执行严格协议验证"
-    ).click()
+    next(button for button in app.button if button.label == "执行严格协议验证").click()
     return app.run()
 
 
@@ -156,9 +141,7 @@ def _generic_final_confirmation(app: AppTest):
 
 def _start_generic_analysis(app: AppTest) -> AppTest:
     _generic_final_confirmation(app).set_value(True)
-    next(
-        button for button in app.button if button.label == "开始绩效分析"
-    ).click()
+    next(button for button in app.button if button.label == "开始绩效分析").click()
     return app.run()
 
 
@@ -183,9 +166,7 @@ def _ready_generic_return(*, benchmark: bool = False) -> AppTest:
             ("2026-01-04", "0.01"),
         )
     ):
-        rows.append(
-            f"{date},{value}{benchmark_values[index] if benchmark else ''}"
-        )
+        rows.append(f"{date},{value}{benchmark_values[index] if benchmark else ''}")
     app = _open_general_csv(
         f"trade_date,strategy_return{benchmark_header}\n" + "\n".join(rows) + "\n"
     )
@@ -214,11 +195,7 @@ def _ready_generic_nav() -> AppTest:
 
 
 def _mapping_role_selectbox(app: AppTest, role: str):
-    return next(
-        selectbox
-        for selectbox in app.selectbox
-        if selectbox.label.startswith(f"{role} ·")
-    )
+    return next(selectbox for selectbox in app.selectbox if selectbox.label.startswith(f"{role} ·"))
 
 
 def _set_mapping_and_submit(
@@ -309,15 +286,11 @@ def test_single_page_exposes_strict_and_general_import_paths() -> None:
 
 def test_general_import_waiting_state_does_not_render_performance_results() -> None:
     app = _open_page(_load_app(), "单实验分析")
-    app.radio(key="single_data_mode").set_value(
-        "通用文件导入（CSV/XLSX）"
-    ).run()
+    app.radio(key="single_data_mode").set_value("通用文件导入（CSV/XLSX）").run()
     page_text = _visible_text(app)
 
     assert not app.exception
-    assert "上传 1 份 CSV 或 XLSX 文件" in [
-        uploader.label for uploader in app.get("file_uploader")
-    ]
+    assert "上传 1 份 CSV 或 XLSX 文件" in [uploader.label for uploader in app.get("file_uploader")]
     assert "当前尚未进行字段映射确认或绩效计算" in page_text
     assert len(app.get("metric")) == 0
     assert len(app.get("plotly_chart")) == 0
@@ -326,9 +299,7 @@ def test_general_import_waiting_state_does_not_render_performance_results() -> N
 
 def test_general_csv_upload_renders_preview_without_performance() -> None:
     app = _open_page(_load_app(), "单实验分析")
-    app.radio(key="single_data_mode").set_value(
-        "通用文件导入（CSV/XLSX）"
-    ).run()
+    app.radio(key="single_data_mode").set_value("通用文件导入（CSV/XLSX）").run()
     app.get("file_uploader")[0].upload(
         "preview.csv",
         "日期;收益\n2026-01-01;0.01\n".encode(),
@@ -342,8 +313,7 @@ def test_general_csv_upload_renders_preview_without_performance() -> None:
     assert any("文件已成功读取" in item.value for item in app.success)
     assert "字段识别建议" in page_text
     assert (
-        "字段识别结果仅为确定性规则生成的建议。"
-        "系统尚未建立字段映射，也不会使用当前文件计算绩效。"
+        "字段识别结果仅为确定性规则生成的建议。系统尚未建立字段映射，也不会使用当前文件计算绩效。"
     ) in page_text
     assert (
         "当前结果仅用于帮助确认字段。系统尚未建立字段映射，"
@@ -367,9 +337,7 @@ def test_general_csv_upload_renders_preview_without_performance() -> None:
 def test_general_mapping_missing_required_fields_is_blocked() -> None:
     app = _open_general_csv("value,notes\n1,a\n2,b\n3,c\n")
 
-    next(
-        button for button in app.button if button.label == "确认字段映射"
-    ).click().run()
+    next(button for button in app.button if button.label == "确认字段映射").click().run()
 
     assert not app.exception
     errors = [item.value for item in app.error]
@@ -400,9 +368,7 @@ def test_general_return_mapping_can_be_explicitly_confirmed_without_analysis() -
     assert "本节不会自动转换收益率单位" in page_text
     assert "尚未执行严格协议验证" not in page_text
     summary = app.dataframe[-1].value
-    return_row = summary.loc[
-        summary["业务角色"] == "strategy_return（策略收益率）"
-    ].iloc[0]
+    return_row = summary.loc[summary["业务角色"] == "strategy_return（策略收益率）"].iloc[0]
     assert return_row["原始字段"] == "strategy_return"
     assert return_row["是否为主口径字段"] == "是"
     assert len(app.get("metric")) == 0
@@ -425,9 +391,7 @@ def test_general_nav_mapping_can_be_explicitly_confirmed_without_analysis() -> N
     assert not app.exception
     assert any(item.value == "字段映射已确认。" for item in app.success)
     summary = app.dataframe[-1].value
-    nav_row = summary.loc[
-        summary["业务角色"] == "strategy_nav（策略净值）"
-    ].iloc[0]
+    nav_row = summary.loc[summary["业务角色"] == "strategy_nav（策略净值）"].iloc[0]
     assert nav_row["原始字段"] == "strategy_nav"
     assert nav_row["是否为主口径字段"] == "是"
     assert len(app.get("metric")) == 0
@@ -436,11 +400,7 @@ def test_general_nav_mapping_can_be_explicitly_confirmed_without_analysis() -> N
 
 
 def test_standardization_button_requires_confirmed_mapping() -> None:
-    app = _open_general_csv(
-        "trade_date,strategy_return\n"
-        "2026-01-01,0.01\n"
-        "2026-01-02,-0.02\n"
-    )
+    app = _open_general_csv("trade_date,strategy_return\n2026-01-01,0.01\n2026-01-02,-0.02\n")
 
     assert not app.exception
     assert "生成标准化预览" not in [button.label for button in app.button]
@@ -448,10 +408,7 @@ def test_standardization_button_requires_confirmed_mapping() -> None:
 
 def test_confirmed_mapping_shows_button_but_does_not_run_automatically() -> None:
     app = _open_general_csv(
-        "trade_date,strategy_return\n"
-        "2026-01-01,0.01\n"
-        "2026-01-02,-0.02\n"
-        "2026-01-03,0.03\n"
+        "trade_date,strategy_return\n2026-01-01,0.01\n2026-01-02,-0.02\n2026-01-03,0.03\n"
     )
     _submit_mapping(app)
     page_text = _visible_text(app)
@@ -482,9 +439,7 @@ def test_return_standardization_preview_is_read_only_and_has_no_analysis_outputs
     assert "标准化分析候选表（前 20 行）" in page_text
     assert "当前尚未执行绩效计算、图表生成、报告生成或结果导出" in page_text
     summary = next(
-        item.value
-        for item in app.dataframe
-        if item.value.columns.tolist() == ["项目", "结果"]
+        item.value for item in app.dataframe if item.value.columns.tolist() == ["项目", "结果"]
     ).set_index("项目")["结果"]
     assert summary["标准化结构类型"] == "收益率分析候选表"
     assert summary["分析候选字段"] == "date、strategy_return、benchmark_return"
@@ -492,8 +447,7 @@ def test_return_standardization_preview_is_read_only_and_has_no_analysis_outputs
     candidate_frames = [
         item.value
         for item in app.dataframe
-        if item.value.columns.tolist()
-        == ["date", "strategy_return", "benchmark_return"]
+        if item.value.columns.tolist() == ["date", "strategy_return", "benchmark_return"]
     ]
     assert len(candidate_frames) == 1
     assert "strategy_nav" not in candidate_frames[0]
@@ -537,10 +491,7 @@ def test_nav_standardization_preview_uses_nav_candidate_structure() -> None:
 
 def test_standardization_blocking_issues_are_visible_without_exception() -> None:
     app = _open_general_csv(
-        "trade_date,strategy_return\n"
-        "2026-01-01,0.01\n"
-        "01/02/2026,1.2%\n"
-        "2026-01-03,-1.0\n"
+        "trade_date,strategy_return\n2026-01-01,0.01\n01/02/2026,1.2%\n2026-01-03,-1.0\n"
     )
     _set_mapping_and_submit(
         app,
@@ -552,11 +503,7 @@ def test_standardization_blocking_issues_are_visible_without_exception() -> None
 
     assert not app.exception
     assert "标准化预检未通过" in page_text
-    issue_frames = [
-        item.value
-        for item in app.dataframe
-        if "问题代码" in item.value.columns
-    ]
+    issue_frames = [item.value for item in app.dataframe if "问题代码" in item.value.columns]
     assert len(issue_frames) == 1
     assert {"date_unparseable", "numeric_unparseable", "return_at_or_below_minus_one"} <= set(
         issue_frames[0]["问题代码"]
@@ -577,9 +524,7 @@ def test_standardization_warnings_are_visible_without_claiming_analysis_complete
 
     assert not app.exception
     summary = next(
-        item.value
-        for item in app.dataframe
-        if item.value.columns.tolist() == ["项目", "结果"]
+        item.value for item in app.dataframe if item.value.columns.tolist() == ["项目", "结果"]
     )
     assert "warning数量" in summary["项目"].tolist()
     assert "标准化预检通过，可以在下一阶段进入现有严格协议验证" in page_text
@@ -588,11 +533,7 @@ def test_standardization_warnings_are_visible_without_claiming_analysis_complete
 
 
 def test_failed_b4a_preview_does_not_offer_strict_protocol_button() -> None:
-    app = _open_general_csv(
-        "trade_date,strategy_return\n"
-        "2026-01-01,0.01\n"
-        "2026-01-02,-1.0\n"
-    )
+    app = _open_general_csv("trade_date,strategy_return\n2026-01-01,0.01\n2026-01-02,-1.0\n")
     _submit_mapping(app)
     _generate_standardization_preview(app)
 
@@ -620,18 +561,14 @@ def test_strict_validation_succeeds_but_still_requires_final_confirmation() -> N
     assert _strict_protocol_summary(app)["严格协议"] == "标准日收益协议"
     assert "现有严格协议验证通过" in page_text
     assert _generic_final_confirmation(app).value is False
-    start_button = next(
-        button for button in app.button if button.label == "开始绩效分析"
-    )
+    start_button = next(button for button in app.button if button.label == "开始绩效分析")
     assert start_button.disabled
     assert len(app.get("metric")) == 0
     assert len(app.get("download_button")) == 0
 
 
 def test_return_primary_final_confirmation_reuses_full_analysis_output() -> None:
-    app = _start_generic_analysis(
-        _execute_strict_validation(_ready_generic_return())
-    )
+    app = _start_generic_analysis(_execute_strict_validation(_ready_generic_return()))
     page_text = _visible_text(app)
 
     assert not app.exception
@@ -643,9 +580,7 @@ def test_return_primary_final_confirmation_reuses_full_analysis_output() -> None
 
 
 def test_return_primary_with_benchmark_reuses_existing_benchmark_output() -> None:
-    app = _start_generic_analysis(
-        _execute_strict_validation(_ready_generic_return(benchmark=True))
-    )
+    app = _start_generic_analysis(_execute_strict_validation(_ready_generic_return(benchmark=True)))
 
     assert not app.exception
     assert any(metric.label == "基准累计收益" for metric in app.metric)
@@ -687,9 +622,7 @@ def test_strict_protocol_failure_is_controlled_and_never_shows_analysis() -> Non
 
 
 def test_regenerating_standardization_invalidates_strict_and_analysis_results() -> None:
-    app = _start_generic_analysis(
-        _execute_strict_validation(_ready_generic_return())
-    )
+    app = _start_generic_analysis(_execute_strict_validation(_ready_generic_return()))
     assert len(app.get("metric")) == 8
 
     _generate_standardization_preview(app)
@@ -703,9 +636,7 @@ def test_regenerating_standardization_invalidates_strict_and_analysis_results() 
 
 
 def test_mapping_change_invalidates_generic_analysis_results() -> None:
-    app = _start_generic_analysis(
-        _execute_strict_validation(_ready_generic_return())
-    )
+    app = _start_generic_analysis(_execute_strict_validation(_ready_generic_return()))
     _mapping_role_selectbox(app, "strategy_return").set_value("不映射").run()
 
     assert not app.exception
@@ -716,17 +647,10 @@ def test_mapping_change_invalidates_generic_analysis_results() -> None:
 
 
 def test_file_change_invalidates_generic_analysis_results() -> None:
-    app = _start_generic_analysis(
-        _execute_strict_validation(_ready_generic_return())
-    )
+    app = _start_generic_analysis(_execute_strict_validation(_ready_generic_return()))
     app.get("file_uploader")[0].upload(
         "replacement.csv",
-        (
-            "trade_date,strategy_return\n"
-            "2026-02-01,0.02\n"
-            "2026-02-02,-0.01\n"
-            "2026-02-03,0.01\n"
-        ).encode("utf-8"),
+        (b"trade_date,strategy_return\n2026-02-01,0.02\n2026-02-02,-0.01\n2026-02-03,0.01\n"),
         "text/csv",
     ).run()
 
@@ -739,9 +663,7 @@ def test_file_change_invalidates_generic_analysis_results() -> None:
 
 def test_xlsx_sheet_change_invalidates_generic_analysis_results() -> None:
     app = _open_page(_load_app(), "单实验分析")
-    app.radio(key="single_data_mode").set_value(
-        "通用文件导入（CSV/XLSX）"
-    ).run()
+    app.radio(key="single_data_mode").set_value("通用文件导入（CSV/XLSX）").run()
     app.get("file_uploader")[0].upload(
         "mapping.xlsx",
         _mapping_multisheet_xlsx(),
@@ -784,22 +706,14 @@ def test_mapping_change_invalidates_old_standardization_preview() -> None:
 
 def test_replacing_file_invalidates_old_standardization_preview() -> None:
     app = _open_general_csv(
-        "trade_date,strategy_return\n"
-        "2026-01-01,0.01\n"
-        "2026-01-02,-0.02\n"
-        "2026-01-03,0.03\n"
+        "trade_date,strategy_return\n2026-01-01,0.01\n2026-01-02,-0.02\n2026-01-03,0.03\n"
     )
     _submit_mapping(app)
     _generate_standardization_preview(app)
 
     app.get("file_uploader")[0].upload(
         "replacement.csv",
-        (
-            "trade_date,strategy_nav\n"
-            "2026-01-01,1.00\n"
-            "2026-01-02,0.98\n"
-            "2026-01-03,1.01\n"
-        ).encode("utf-8"),
+        (b"trade_date,strategy_nav\n2026-01-01,1.00\n2026-01-02,0.98\n2026-01-03,1.01\n"),
         "text/csv",
     ).run()
 
@@ -810,9 +724,7 @@ def test_replacing_file_invalidates_old_standardization_preview() -> None:
 
 def test_switching_xlsx_sheet_invalidates_old_standardization_preview() -> None:
     app = _open_page(_load_app(), "单实验分析")
-    app.radio(key="single_data_mode").set_value(
-        "通用文件导入（CSV/XLSX）"
-    ).run()
+    app.radio(key="single_data_mode").set_value("通用文件导入（CSV/XLSX）").run()
     app.get("file_uploader")[0].upload(
         "mapping.xlsx",
         _mapping_multisheet_xlsx(),
@@ -831,9 +743,7 @@ def test_switching_xlsx_sheet_invalidates_old_standardization_preview() -> None:
 
 def test_switching_xlsx_sheet_invalidates_confirmed_mapping() -> None:
     app = _open_page(_load_app(), "单实验分析")
-    app.radio(key="single_data_mode").set_value(
-        "通用文件导入（CSV/XLSX）"
-    ).run()
+    app.radio(key="single_data_mode").set_value("通用文件导入（CSV/XLSX）").run()
     app.get("file_uploader")[0].upload(
         "mapping.xlsx",
         _mapping_multisheet_xlsx(),
@@ -847,10 +757,7 @@ def test_switching_xlsx_sheet_invalidates_confirmed_mapping() -> None:
     app.selectbox(key="general_xlsx_sheet").set_value("净值表").run()
 
     assert not app.exception
-    assert any(
-        item.value == "文件或解析设置已变化，请重新确认字段映射。"
-        for item in app.warning
-    )
+    assert any(item.value == "文件或解析设置已变化，请重新确认字段映射。" for item in app.warning)
     assert not any(item.value == "字段映射已确认。" for item in app.success)
     assert _mapping_basis_selectbox(app).value == "策略净值为主"
 
@@ -869,28 +776,23 @@ def test_replacing_uploaded_file_invalidates_confirmed_mapping() -> None:
     app.get("file_uploader")[0].upload(
         "replacement.csv",
         (
-            "trade_date,strategy_nav\n"
-            "2026-01-01,1.00\n"
-            "2026-01-02,0.98\n"
-            "2026-01-03,1.01\n"
-            "2026-01-04,1.02\n"
-        ).encode("utf-8"),
+            b"trade_date,strategy_nav\n"
+            b"2026-01-01,1.00\n"
+            b"2026-01-02,0.98\n"
+            b"2026-01-03,1.01\n"
+            b"2026-01-04,1.02\n"
+        ),
         "text/csv",
     ).run()
 
     assert not app.exception
-    assert any(
-        item.value == "文件或解析设置已变化，请重新确认字段映射。"
-        for item in app.warning
-    )
+    assert any(item.value == "文件或解析设置已变化，请重新确认字段映射。" for item in app.warning)
     assert not any(item.value == "字段映射已确认。" for item in app.success)
 
 
 def test_general_xlsx_upload_can_switch_selected_sheet() -> None:
     app = _open_page(_load_app(), "单实验分析")
-    app.radio(key="single_data_mode").set_value(
-        "通用文件导入（CSV/XLSX）"
-    ).run()
+    app.radio(key="single_data_mode").set_value("通用文件导入（CSV/XLSX）").run()
     app.get("file_uploader")[0].upload(
         "preview.xlsx",
         _multisheet_xlsx(),
@@ -924,16 +826,12 @@ def test_existing_strict_protocol_upload_path_remains_available() -> None:
         "标准日频收益 CSV",
         "每周调仓净值 CSV",
     ]
-    assert "上传 1 份 CSV 文件" in [
-        uploader.label for uploader in app.get("file_uploader")
-    ]
+    assert "上传 1 份 CSV 文件" in [uploader.label for uploader in app.get("file_uploader")]
 
 
 def test_optional_experiment_information_is_collapsed_and_usable() -> None:
     app = _open_page(_load_app(), "单实验分析")
-    experiment_expander = next(
-        item for item in app.expander if item.label == "实验信息（可选）"
-    )
+    experiment_expander = next(item for item in app.expander if item.label == "实验信息（可选）")
 
     assert experiment_expander.proto.expanded is False
     assert app.text_input(key="experiment_name:sample").value == "示例日频收益实验"
@@ -995,9 +893,7 @@ def test_reference_page_groups_errors_in_collapsed_warning_section() -> None:
 
     assert not app.exception
     assert "错误示例与预检说明" in expander_labels
-    error_expander = next(
-        item for item in app.expander if item.label == "错误示例与预检说明"
-    )
+    error_expander = next(item for item in app.expander if item.label == "错误示例与预检说明")
     assert error_expander.proto.expanded is False
     assert "故意包含不明确或不安全的数据" in page_text
     assert "不应作为正常分析模板" in page_text
@@ -1065,8 +961,7 @@ def test_sidebar_uses_concise_privacy_notice() -> None:
 
     assert sidebar_warnings == [SIDEBAR_PRIVACY_NOTICE]
     assert SIDEBAR_PRIVACY_NOTICE == (
-        "公开云端版本会在云端应用进程中处理上传文件。"
-        "请勿上传敏感或受限制数据。"
+        "公开云端版本会在云端应用进程中处理上传文件。请勿上传敏感或受限制数据。"
     )
     assert "云端应用进程" in SIDEBAR_PRIVACY_NOTICE
     assert "敏感或受限制数据" in SIDEBAR_PRIVACY_NOTICE
@@ -1131,18 +1026,10 @@ def test_generic_import_uses_public_workflow_names_without_stage_codes() -> None
 
 def test_quick_guide_version_keeps_configured_case() -> None:
     app = _open_page(_load_app(), "使用说明")
-    kicker_markup = [
-        item.value
-        for item in app.markdown
-        if 'class="qrw-kicker"' in str(item.value)
-    ]
-    style_markup = next(
-        item.value for item in app.markdown if "<style>" in str(item.value)
-    )
+    kicker_markup = [item.value for item in app.markdown if 'class="qrw-kicker"' in str(item.value)]
+    style_markup = next(item.value for item in app.markdown if "<style>" in str(item.value))
 
-    assert kicker_markup == [
-        f'<p class="qrw-kicker">快速指南 · v{APP_VERSION}</p>'
-    ]
+    assert kicker_markup == [f'<p class="qrw-kicker">快速指南 · v{APP_VERSION}</p>']
     assert "text-transform: none;" in style_markup
     assert "text-transform: uppercase;" not in style_markup
 
@@ -1160,10 +1047,7 @@ def test_ui_modules_do_not_hardcode_release_version() -> None:
         source = path.read_text(encoding="utf-8")
         assert "0.1.0-rc1" not in source
         assert "0.2.0" not in source
-    assert all(
-        "APP_VERSION.upper()" not in path.read_text(encoding="utf-8")
-        for path in ui_paths
-    )
+    assert all("APP_VERSION.upper()" not in path.read_text(encoding="utf-8") for path in ui_paths)
 
 
 @pytest.mark.parametrize(

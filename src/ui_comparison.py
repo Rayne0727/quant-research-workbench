@@ -30,7 +30,6 @@ from src.sample_data import generate_comparison_sample_data
 from src.templates import generate_comparison_template_csv
 from src.ui_common import render_page_header
 
-
 LOGGER = logging.getLogger(__name__)
 UNEXPECTED_ERROR_MESSAGE = (
     "应用处理过程中出现未预期错误。请检查文件格式；"
@@ -56,10 +55,7 @@ def _render_comparison_page() -> None:
         "上传 2 至 6 份标准化分析 CSV，在真实共同交易日期上统一比较绩效与回撤。",
         "比较中心",
     )
-    st.info(
-        "多实验比较仅使用标准化文件中的策略字段；"
-        "基准字段暂不参与跨实验比较。"
-    )
+    st.info("多实验比较仅使用标准化文件中的策略字段；基准字段暂不参与跨实验比较。")
     st.markdown("### 1. 上传标准化数据")
     source_mode = st.radio(
         "选择比较数据来源",
@@ -76,10 +72,7 @@ def _render_comparison_page() -> None:
         "必需字段：`date`、`strategy_return`、`strategy_nav`、`drawdown`；  "
         "可选字段：`benchmark_return`、`benchmark_nav`。系统不会自动映射其他字段。"
     )
-    st.caption(
-        "模板第一行收益为空且净值为1，仅用于标准化字段格式演示，"
-        "不代表真实策略结果。"
-    )
+    st.caption("模板第一行收益为空且净值为1，仅用于标准化字段格式演示，不代表真实策略结果。")
     st.download_button(
         "下载标准化比较 CSV 模板",
         data=generate_comparison_template_csv(),
@@ -109,33 +102,22 @@ def _render_comparison_page() -> None:
         st.caption(f"上传文件数量：{len(uploaded_files)}")
         if uploaded_files:
             parsed_names = [
-                extract_experiment_name(uploaded_file.name)
-                for uploaded_file in uploaded_files
+                extract_experiment_name(uploaded_file.name) for uploaded_file in uploaded_files
             ]
             st.caption(f"实验名称：{'、'.join(parsed_names)}")
         if len(uploaded_files) < 2:
             st.info("多实验比较至少需要上传 2 份标准化 CSV。")
             return
         if len(uploaded_files) > MAX_COMPARISON_FILES:
-            st.error(
-                f"当前版本最多支持 {MAX_COMPARISON_FILES} 份标准化 CSV。"
-            )
+            st.error(f"当前版本最多支持 {MAX_COMPARISON_FILES} 份标准化 CSV。")
             return
         result = load_and_compare_standardized_files(
-            [
-                (uploaded_file.name, uploaded_file)
-                for uploaded_file in uploaded_files
-            ]
+            [(uploaded_file.name, uploaded_file) for uploaded_file in uploaded_files]
         )
 
     st.markdown("### 2. 文件与实验名称检查")
-    experiment_names = [
-        experiment.name for experiment in result.experiments
-    ]
-    st.success(
-        f"已通过 {len(experiment_names)} 份标准化文件检查："
-        f"{'、'.join(experiment_names)}"
-    )
+    experiment_names = [experiment.name for experiment in result.experiments]
+    st.success(f"已通过 {len(experiment_names)} 份标准化文件检查：{'、'.join(experiment_names)}")
     _render_coverage(result)
     _render_metrics(result)
     _render_charts(result)
@@ -154,30 +136,19 @@ def _render_coverage(result: ComparisonResult) -> None:
         }
     ).copy()
     for column in ("原始开始日期", "原始结束日期"):
-        coverage_display[column] = pd.to_datetime(
-            coverage_display[column]
-        ).dt.strftime("%Y-%m-%d")
+        coverage_display[column] = pd.to_datetime(coverage_display[column]).dt.strftime("%Y-%m-%d")
     st.dataframe(coverage_display, hide_index=True, width="stretch")
 
     common_columns = st.columns(2)
-    common_columns[0].metric(
-        "共同净值观察日数", str(result.common_nav_observations)
-    )
-    common_columns[1].metric(
-        "共同有效收益日数", str(result.common_return_observations)
-    )
+    common_columns[0].metric("共同净值观察日数", str(result.common_nav_observations))
+    common_columns[1].metric("共同有效收益日数", str(result.common_return_observations))
     date_columns = st.columns(2)
-    date_columns[0].write(
-        f"**共同开始日期**  \n{result.common_start_date.strftime('%Y-%m-%d')}"
-    )
-    date_columns[1].write(
-        f"**共同结束日期**  \n{result.common_end_date.strftime('%Y-%m-%d')}"
-    )
+    date_columns[0].write(f"**共同开始日期**  \n{result.common_start_date.strftime('%Y-%m-%d')}")
+    date_columns[1].write(f"**共同结束日期**  \n{result.common_end_date.strftime('%Y-%m-%d')}")
     st.info("以下指标均基于所有实验共同存在的交易日期重新计算。")
     if result.common_return_observations < 60:
         st.warning(
-            "当前共同样本交易日较少，年化收益、年化波动率和夏普比率"
-            "对短期表现较敏感，仅供参考。"
+            "当前共同样本交易日较少，年化收益、年化波动率和夏普比率对短期表现较敏感，仅供参考。"
         )
 
 
@@ -204,9 +175,7 @@ def _render_metrics(result: ComparisonResult) -> None:
         "positive_day_ratio",
     ):
         metrics_display[column] = metrics_display[column].map(_format_percentage)
-    metrics_display["sharpe_ratio"] = metrics_display["sharpe_ratio"].map(
-        _format_number
-    )
+    metrics_display["sharpe_ratio"] = metrics_display["sharpe_ratio"].map(_format_number)
     metrics_display = metrics_display.rename(
         columns={
             "experiment_name": "实验名称",
@@ -266,9 +235,7 @@ def _render_charts(result: ComparisonResult) -> None:
 def _render_summary_and_downloads(result: ComparisonResult) -> None:
     """展示确定性摘要并提供三种仅在内存中生成的下载。"""
     context = ComparisonReportContext(
-        experiment_names=tuple(
-            experiment.name for experiment in result.experiments
-        ),
+        experiment_names=tuple(experiment.name for experiment in result.experiments),
         coverage_table=result.coverage_table,
         metrics_table=result.metrics_table,
         common_start_date=result.common_start_date,
@@ -313,7 +280,7 @@ def _format_percentage(value: object) -> str:
     """将有限数值格式化为两位小数百分比。"""
     try:
         numeric_value = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return "不可用"
     return f"{numeric_value:.2%}" if pd.notna(numeric_value) else "不可用"
 
@@ -322,6 +289,6 @@ def _format_number(value: object) -> str:
     """将有限数值格式化为两位小数普通数字。"""
     try:
         numeric_value = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return "不可用"
     return f"{numeric_value:.2f}" if pd.notna(numeric_value) else "不可用"

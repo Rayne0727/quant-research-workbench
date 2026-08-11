@@ -451,7 +451,9 @@ def test_nav_generic_path_matches_direct_adapter_data_diagnostics_and_metrics() 
         direct_result.diagnostics.mismatches,
         check_dtype=False,
     )
-    assert calculate_nav_performance_metrics(generic) == calculate_nav_performance_metrics(direct_result.data)
+    assert calculate_nav_performance_metrics(generic) == calculate_nav_performance_metrics(
+        direct_result.data
+    )
 
 
 def test_nav_generic_path_matches_direct_report_chart_and_export_data() -> None:

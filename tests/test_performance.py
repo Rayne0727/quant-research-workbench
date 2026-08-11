@@ -53,9 +53,7 @@ def test_max_drawdown_is_not_positive(returns_data: pd.DataFrame) -> None:
 
 def test_annualized_volatility_is_correct(returns_data: pd.DataFrame) -> None:
     metrics = calculate_performance_metrics(returns_data)
-    expected = pd.Series([0.10, -0.05, 0.02]).std(ddof=1) * math.sqrt(
-        TRADING_DAYS_PER_YEAR
-    )
+    expected = pd.Series([0.10, -0.05, 0.02]).std(ddof=1) * math.sqrt(TRADING_DAYS_PER_YEAR)
 
     assert metrics["annualized_volatility"] == pytest.approx(expected)
 
@@ -80,9 +78,7 @@ def test_metric_results_do_not_contain_infinity(
     metrics = calculate_performance_metrics(returns_data)
 
     numeric_values = [
-        value
-        for value in metrics.values()
-        if isinstance(value, (int, float)) and value is not None
+        value for value in metrics.values() if isinstance(value, (int, float)) and value is not None
     ]
     assert all(math.isfinite(value) for value in numeric_values)
 

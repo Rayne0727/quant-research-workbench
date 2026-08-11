@@ -143,10 +143,7 @@ def _draft(
     scores: dict[str, dict[str, int]] | None = None,
 ) -> MappingDraft:
     role_to_column = {role: None for role in ROLE_ORDER}
-    role_to_column.update(
-        choices
-        or {"date": "trade_date", "strategy_return": "strategy_return"}
-    )
+    role_to_column.update(choices or {"date": "trade_date", "strategy_return": "strategy_return"})
     return MappingDraft(
         source_key="source-key",
         primary_basis=basis,
@@ -209,9 +206,7 @@ def test_close_candidates_are_not_prefilled() -> None:
 
 def test_role_conflict_is_not_prefilled() -> None:
     warning = "字段“return”同时成为多个角色的首选候选。"
-    detection = _detection(
-        {"strategy_return": _candidate("return", 95, warnings=(warning,))}
-    )
+    detection = _detection({"strategy_return": _candidate("return", 95, warnings=(warning,))})
 
     draft = build_suggested_mapping(["return"], detection)
 
@@ -230,9 +225,7 @@ def test_fully_empty_high_candidate_is_not_prefilled() -> None:
 
 
 def test_only_high_strategy_return_suggests_return_basis() -> None:
-    detection = _detection(
-        {"strategy_return": _candidate("strategy_return", 95)}
-    )
+    detection = _detection({"strategy_return": _candidate("strategy_return", 95)})
 
     draft = build_suggested_mapping(["strategy_return"], detection)
 
@@ -255,9 +248,7 @@ def test_two_high_primary_roles_leave_basis_unselected() -> None:
         }
     )
 
-    draft = build_suggested_mapping(
-        ["strategy_return", "strategy_nav"], detection
-    )
+    draft = build_suggested_mapping(["strategy_return", "strategy_nav"], detection)
 
     assert draft.primary_basis is None
 

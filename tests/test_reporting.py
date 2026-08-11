@@ -1,7 +1,7 @@
 """确定性摘要、Markdown 报告和标准化数据导出测试。"""
 
-from dataclasses import replace
 import re
+from dataclasses import replace
 
 import pandas as pd
 import pytest
@@ -360,9 +360,7 @@ def test_continuous_numbering_without_benchmark_or_limitation(
 def test_section_numbering_does_not_jump_from_two_to_four(
     standard_context: ReportContext,
 ) -> None:
-    summary = generate_analysis_summary(
-        replace(standard_context, valid_return_count=20)
-    )
+    summary = generate_analysis_summary(replace(standard_context, valid_return_count=20))
 
     assert "### 4. 数据限制" not in summary
 

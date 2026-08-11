@@ -1,7 +1,7 @@
 """单实验分析模式的 Streamlit 页面组织。"""
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
@@ -19,15 +19,6 @@ from src.analysis_bridge import (
 )
 from src.config import MAX_COLUMNS_PER_FILE, MAX_ROWS_PER_FILE, SINGLE_FILE_MAX_MB
 from src.data_loader import DataValidationError, load_returns_csv
-from src.file_import import (
-    CSV_DELIMITER_DISPLAY,
-    CSV_DELIMITER_LABELS,
-    FileImportError,
-    ImportedTable,
-    get_xlsx_sheet_names,
-    import_table,
-    read_uploaded_bytes,
-)
 from src.field_detection import (
     MAX_PROFILE_SAMPLE_SIZE,
     ROLE_LABELS,
@@ -47,6 +38,15 @@ from src.field_mapping import (
     is_confirmed_mapping_current,
     update_mapping_draft,
     validate_mapping,
+)
+from src.file_import import (
+    CSV_DELIMITER_DISPLAY,
+    CSV_DELIMITER_LABELS,
+    FileImportError,
+    ImportedTable,
+    get_xlsx_sheet_names,
+    import_table,
+    read_uploaded_bytes,
 )
 from src.limits import UploadLimitError
 from src.performance import (
@@ -75,7 +75,6 @@ from src.standardization import (
 from src.templates import generate_daily_returns_template_csv
 from src.ui_common import render_page_header
 
-
 LOGGER = logging.getLogger(__name__)
 STANDARD_RETURN_FORMAT = "标准日频收益 CSV"
 WEEKLY_NAV_FORMAT = "每周调仓净值 CSV"
@@ -84,8 +83,7 @@ UNEXPECTED_ERROR_MESSAGE = (
     "若问题持续存在，请重新启动应用并保留错误发生步骤。"
 )
 FIELD_SUGGESTION_NOTICE = (
-    "字段识别结果仅为确定性规则生成的建议。"
-    "系统尚未建立字段映射，也不会使用当前文件计算绩效。"
+    "字段识别结果仅为确定性规则生成的建议。系统尚未建立字段映射，也不会使用当前文件计算绩效。"
 )
 FIELD_SUGGESTION_BOUNDARY = (
     "当前结果仅用于帮助确认字段。系统尚未建立字段映射，"
@@ -97,24 +95,14 @@ MAPPING_CONFIRMED_KEY = f"{MAPPING_STATE_PREFIX}:confirmed"
 MAPPING_INVALIDATED_KEY = f"{MAPPING_STATE_PREFIX}:invalidation_pending"
 STANDARDIZATION_STATE_PREFIX = "qrw_standardization"
 STANDARDIZATION_RESULT_KEY = f"{STANDARDIZATION_STATE_PREFIX}:result"
-STANDARDIZATION_INVALIDATED_KEY = (
-    f"{STANDARDIZATION_STATE_PREFIX}:invalidation_pending"
-)
-STANDARDIZATION_INVALIDATION_MESSAGE = (
-    "文件、解析设置或字段映射已变化，请重新生成标准化预览。"
-)
+STANDARDIZATION_INVALIDATED_KEY = f"{STANDARDIZATION_STATE_PREFIX}:invalidation_pending"
+STANDARDIZATION_INVALIDATION_MESSAGE = "文件、解析设置或字段映射已变化，请重新生成标准化预览。"
 GENERIC_ANALYSIS_STATE_PREFIX = "qrw_generic_analysis"
 GENERIC_STRICT_RESULT_KEY = f"{GENERIC_ANALYSIS_STATE_PREFIX}:strict_result"
-GENERIC_STRICT_RESULT_KEY_KEY = (
-    f"{GENERIC_ANALYSIS_STATE_PREFIX}:strict_result_key"
-)
+GENERIC_STRICT_RESULT_KEY_KEY = f"{GENERIC_ANALYSIS_STATE_PREFIX}:strict_result_key"
 GENERIC_ANALYSIS_RESULT_KEY = f"{GENERIC_ANALYSIS_STATE_PREFIX}:analysis_result"
-GENERIC_ANALYSIS_RESULT_KEY_KEY = (
-    f"{GENERIC_ANALYSIS_STATE_PREFIX}:analysis_result_key"
-)
-GENERIC_ANALYSIS_INVALIDATED_KEY = (
-    f"{GENERIC_ANALYSIS_STATE_PREFIX}:invalidation_pending"
-)
+GENERIC_ANALYSIS_RESULT_KEY_KEY = f"{GENERIC_ANALYSIS_STATE_PREFIX}:analysis_result_key"
+GENERIC_ANALYSIS_INVALIDATED_KEY = f"{GENERIC_ANALYSIS_STATE_PREFIX}:invalidation_pending"
 GENERIC_ANALYSIS_INVALIDATION_MESSAGE = (
     "文件、解析设置、字段映射或标准化结果已变化，请重新执行严格协议验证。"
 )
@@ -123,9 +111,7 @@ PRIMARY_BASIS_LABELS = {
     "策略收益率为主": PRIMARY_BASIS_RETURN,
     "策略净值为主": PRIMARY_BASIS_NAV,
 }
-PRIMARY_BASIS_VALUE_LABELS = {
-    value: label for label, value in PRIMARY_BASIS_LABELS.items()
-}
+PRIMARY_BASIS_VALUE_LABELS = {value: label for label, value in PRIMARY_BASIS_LABELS.items()}
 ROLE_MAPPING_LABELS = {
     "date": "日期",
     "strategy_return": "策略收益率",
@@ -217,9 +203,7 @@ def _render_single_page() -> None:
         st.write("固定示例采用 **标准日频收益 CSV** 格式。")
         current_mode = "示例数据模式"
 
-    primary_field = (
-        "nav_strat" if selected_format == WEEKLY_NAV_FORMAT else "strategy_return"
-    )
+    primary_field = "nav_strat" if selected_format == WEEKLY_NAV_FORMAT else "strategy_return"
     st.info(
         f"当前数据模式：{current_mode}  ·  当前格式：{selected_format}  ·  "
         f"计算主字段：{primary_field}"
@@ -233,10 +217,7 @@ def _render_single_page() -> None:
             "上传 1 份 CSV 文件",
             type=("csv",),
             key="single_uploaded_file",
-            help=(
-                f"仅接受 CSV；文件最大 {SINGLE_FILE_MAX_MB} MB、"
-                f"最多 {MAX_ROWS_PER_FILE} 行。"
-            ),
+            help=(f"仅接受 CSV；文件最大 {SINGLE_FILE_MAX_MB} MB、最多 {MAX_ROWS_PER_FILE} 行。"),
             max_upload_size=SINGLE_FILE_MAX_MB,
         )
     if selected_format == STANDARD_RETURN_FORMAT:
@@ -271,9 +252,7 @@ def _render_single_page() -> None:
         return
 
     data_source = (
-        Path(__file__).resolve().parent.parent
-        / "data"
-        / "example_daily_returns.csv"
+        Path(__file__).resolve().parent.parent / "data" / "example_daily_returns.csv"
         if data_mode == "使用示例数据"
         else uploaded_file
     )
@@ -291,14 +270,10 @@ def _render_single_page() -> None:
         metrics = calculate_performance_metrics(cleaned_data)
 
     default_experiment_name = (
-        "示例日频收益实验"
-        if data_mode == "使用示例数据"
-        else Path(uploaded_file.name).stem
+        "示例日频收益实验" if data_mode == "使用示例数据" else Path(uploaded_file.name).stem
     )
     input_identity = (
-        "sample"
-        if data_mode == "使用示例数据"
-        else f"{selected_format}:{uploaded_file.name}"
+        "sample" if data_mode == "使用示例数据" else f"{selected_format}:{uploaded_file.name}"
     )
     _render_completed_analysis(
         cleaned_data=cleaned_data,
@@ -335,7 +310,14 @@ def _render_completed_analysis(
     source_label: str | None = None,
 ) -> None:
     """复用现有指标、图表、摘要、报告和导出展示。"""
-    check_section, metric_section, chart_section, summary_section, export_section, preview_section = section_numbers
+    (
+        check_section,
+        metric_section,
+        chart_section,
+        summary_section,
+        export_section,
+        preview_section,
+    ) = section_numbers
     st.markdown(f"### {check_section}. 数据检查结果")
     st.success("字段、日期、数值和样本数量检查通过，可以继续分析。")
     if source_label:
@@ -370,26 +352,16 @@ def _render_completed_analysis(
 
     st.markdown(f"### {metric_section}. 核心指标")
     metric_row_one = st.columns(4)
-    metric_row_one[0].metric(
-        "累计收益", _format_percentage(metrics["cumulative_return"])
-    )
-    metric_row_one[1].metric(
-        "年化收益", _format_percentage(metrics["annualized_return"])
-    )
-    metric_row_one[2].metric(
-        "年化波动率", _format_percentage(metrics["annualized_volatility"])
-    )
+    metric_row_one[0].metric("累计收益", _format_percentage(metrics["cumulative_return"]))
+    metric_row_one[1].metric("年化收益", _format_percentage(metrics["annualized_return"]))
+    metric_row_one[2].metric("年化波动率", _format_percentage(metrics["annualized_volatility"]))
     metric_row_one[3].metric("夏普比率", _format_number(metrics["sharpe_ratio"]))
 
     is_nav_format = selected_format == WEEKLY_NAV_FORMAT
     has_benchmark = "benchmark_cumulative_return" in metrics
     metric_row_two = st.columns(4 if has_benchmark or is_nav_format else 3)
-    metric_row_two[0].metric(
-        "最大回撤", _format_percentage(metrics["max_drawdown"])
-    )
-    metric_row_two[1].metric(
-        "盈利日占比", _format_percentage(metrics["positive_day_ratio"])
-    )
+    metric_row_two[0].metric("最大回撤", _format_percentage(metrics["max_drawdown"]))
+    metric_row_two[1].metric("盈利日占比", _format_percentage(metrics["positive_day_ratio"]))
     if is_nav_format:
         metric_row_two[2].metric("净值观察日数", str(metrics["nav_observations"]))
         metric_row_two[3].metric("有效收益日数", str(metrics["n_days"]))
@@ -407,10 +379,7 @@ def _render_completed_analysis(
     date_columns[1].write(f"结束日期：{_format_date(metrics['end_date'])}")
 
     if int(metrics["n_days"]) < 60:
-        st.warning(
-            "当前样本交易日较少，年化收益、年化波动率和夏普比率"
-            "对短期表现较敏感，仅供参考。"
-        )
+        st.warning("当前样本交易日较少，年化收益、年化波动率和夏普比率对短期表现较敏感，仅供参考。")
 
     st.markdown(f"### {chart_section}. 图表")
     nav_figure = go.Figure()
@@ -530,12 +499,9 @@ def _render_general_file_import() -> None:
     if uploaded_file is None:
         _clear_mapping_session_state()
         st.caption(
-            "请选择 CSV 或 XLSX 文件。上传后将先确认解析设置，"
-            "再显示字段和前 20 行原始预览。"
+            "请选择 CSV 或 XLSX 文件。上传后将先确认解析设置，再显示字段和前 20 行原始预览。"
         )
-        st.warning(
-            "文件尚未读取。当前尚未进行字段映射确认或绩效计算。"
-        )
+        st.warning("文件尚未读取。当前尚未进行字段映射确认或绩效计算。")
         return
 
     file_name, content = read_uploaded_bytes(uploaded_file)
@@ -547,10 +513,7 @@ def _render_general_file_import() -> None:
             "CSV 分隔符",
             options=tuple(CSV_DELIMITER_LABELS),
             key="general_csv_delimiter",
-            help=(
-                "自动识别仅会在逗号、制表符、分号和竖线中选择；"
-                "如果结果不符，请手动指定。"
-            ),
+            help=("自动识别仅会在逗号、制表符、分号和竖线中选择；如果结果不符，请手动指定。"),
         )
         result = import_table(
             file_name,
@@ -590,9 +553,7 @@ def _render_import_result(result: ImportedTable, content: bytes) -> None:
     info_columns = st.columns(2)
     info_columns[0].write(f"**文件名：** {result.file_name}")
     info_columns[0].write(f"**文件类型：** {result.file_type}")
-    info_columns[0].write(
-        f"**文件大小：** {result.file_size_bytes / 1024:.2f} KB"
-    )
+    info_columns[0].write(f"**文件大小：** {result.file_size_bytes / 1024:.2f} KB")
     info_columns[1].write(f"**数据行数：** {result.row_count}")
     info_columns[1].write(f"**数据列数：** {result.column_count}")
     if result.file_type == "XLSX":
@@ -641,10 +602,7 @@ def _render_import_result(result: ImportedTable, content: bytes) -> None:
         "标准化预检与现有严格协议验证是两道不同检查；"
         "严格验证通过后仍需用户最终确认并主动启动绩效分析。"
     )
-    st.caption(
-        "文件、解析设置、工作表、字段映射或标准化结果变化后，"
-        "旧验证和分析结果会立即失效。"
-    )
+    st.caption("文件、解析设置、工作表、字段映射或标准化结果变化后，旧验证和分析结果会立即失效。")
 
 
 def _candidate_rows(
@@ -720,9 +678,7 @@ def _render_field_detection(detection: DetectionResult) -> None:
                     else "没有达到最低建议阈值"
                 ),
                 "风险提示": (
-                    "；".join(candidate.warnings)
-                    if candidate and candidate.warnings
-                    else "—"
+                    "；".join(candidate.warnings) if candidate and candidate.warnings else "—"
                 ),
             }
         )
@@ -787,8 +743,7 @@ def _clear_mapping_session_state() -> None:
 def _invalidate_generic_analysis(*, notify: bool = True) -> bool:
     """清除会话内严格验证和绩效结果，不影响任何来源数据。"""
     had_result = any(
-        key in st.session_state
-        for key in (GENERIC_STRICT_RESULT_KEY, GENERIC_ANALYSIS_RESULT_KEY)
+        key in st.session_state for key in (GENERIC_STRICT_RESULT_KEY, GENERIC_ANALYSIS_RESULT_KEY)
     )
     for key in tuple(st.session_state):
         if (
@@ -811,10 +766,7 @@ def _invalidate_standardization_preview() -> bool:
         StandardizationResult,
     )
     for key in tuple(st.session_state):
-        if (
-            key.startswith(STANDARDIZATION_STATE_PREFIX)
-            and key != STANDARDIZATION_INVALIDATED_KEY
-        ):
+        if key.startswith(STANDARDIZATION_STATE_PREFIX) and key != STANDARDIZATION_INVALIDATED_KEY:
             st.session_state.pop(key, None)
     if had_result:
         st.session_state[STANDARDIZATION_INVALIDATED_KEY] = True
@@ -825,16 +777,9 @@ def _prepare_mapping_session_state(source_key: str) -> bool:
     """来源变化时使旧确认失效，并返回是否需要显示失效提示。"""
     previous_source_key = st.session_state.get(MAPPING_SOURCE_KEY)
     confirmed = st.session_state.get(MAPPING_CONFIRMED_KEY)
-    source_changed = (
-        previous_source_key is not None
-        and previous_source_key != source_key
-    )
-    invalidation_pending = bool(
-        st.session_state.pop(MAPPING_INVALIDATED_KEY, False)
-    )
-    invalidated = bool(
-        invalidation_pending or (source_changed and confirmed is not None)
-    )
+    source_changed = previous_source_key is not None and previous_source_key != source_key
+    invalidation_pending = bool(st.session_state.pop(MAPPING_INVALIDATED_KEY, False))
+    invalidated = bool(invalidation_pending or (source_changed and confirmed is not None))
     if previous_source_key != source_key:
         previous_prefix = (
             _mapping_source_state_prefix(previous_source_key)
@@ -914,7 +859,9 @@ def _render_confirmed_mapping_summary(
                 "与系统首选建议是否一致": (
                     "是"
                     if column_name is not None and column_name == recommended
-                    else "否" if column_name is not None else "不适用"
+                    else "否"
+                    if column_name is not None
+                    else "不适用"
                 ),
                 "当前用途": _role_purpose(role, confirmed.primary_basis),
             }
@@ -925,8 +872,7 @@ def _render_confirmed_mapping_summary(
         for warning in confirmed.warnings:
             st.warning(warning)
     st.info(
-        "字段映射已确认，但尚未生成标准化预览或执行绩效计算。"
-        "如需继续，请在下方主动生成标准化预览。"
+        "字段映射已确认，但尚未生成标准化预览或执行绩效计算。如需继续，请在下方主动生成标准化预览。"
     )
 
 
@@ -939,8 +885,7 @@ def _mapping_matches_confirmed(
         draft.source_key == confirmed.source_key
         and draft.primary_basis == confirmed.primary_basis
         and all(
-            draft.role_to_column.get(role)
-            == confirmed.role_to_column.get(role)
+            draft.role_to_column.get(role) == confirmed.role_to_column.get(role)
             for role in ROLE_ORDER
         )
     )
@@ -993,9 +938,7 @@ def _standardization_role_rows(
                 "原始字段": column_name,
                 "标准化字段": output_name,
                 "属于主口径": (
-                    "是"
-                    if role == result.primary_basis
-                    else "公共必需" if role == "date" else "否"
+                    "是" if role == result.primary_basis else "公共必需" if role == "date" else "否"
                 ),
                 "进入严格协议候选输入": "是" if enters_candidate else "否",
                 "仅诊断": "是" if diagnostic_only else "否",
@@ -1010,9 +953,7 @@ def _render_standardization_result(result: StandardizationResult) -> None:
     blocking_count = sum(issue.level == BLOCKING for issue in result.issues)
     warning_count = sum(issue.level == WARNING for issue in result.issues)
     basis_label = (
-        "策略收益率为主"
-        if result.primary_basis == PRIMARY_BASIS_RETURN
-        else "策略净值为主"
+        "策略收益率为主" if result.primary_basis == PRIMARY_BASIS_RETURN else "策略净值为主"
     )
     summary_rows = [
         {"项目": "主口径", "结果": basis_label},
@@ -1060,8 +1001,7 @@ def _render_standardization_result(result: StandardizationResult) -> None:
         st.success("标准化预检通过，可以在下一阶段进入现有严格协议验证。")
     else:
         st.error(
-            "标准化预检未通过。系统未删除、修改或修复原始数据，"
-            "请返回原文件或字段映射进行处理。"
+            "标准化预检未通过。系统未删除、修改或修复原始数据，请返回原文件或字段映射进行处理。"
         )
     st.info("当前尚未执行绩效计算、图表生成、报告生成或结果导出。")
 
@@ -1070,9 +1010,7 @@ def _strict_protocol_summary_rows(
     result: StrictProtocolResult,
 ) -> list[dict[str, str]]:
     basis_label = (
-        "策略收益率为主"
-        if result.primary_basis == PRIMARY_BASIS_RETURN
-        else "策略净值为主"
+        "策略收益率为主" if result.primary_basis == PRIMARY_BASIS_RETURN else "策略净值为主"
     )
     return [
         {"项目": "分析主口径", "结果": basis_label},
@@ -1125,15 +1063,9 @@ def _render_strict_protocol_result(result: StrictProtocolResult) -> None:
     for error in result.errors:
         st.error(error)
     if result.is_valid:
-        st.success(
-            "现有严格协议验证通过。请核对主口径、字段单位和分析范围后，"
-            "再明确启动绩效分析。"
-        )
+        st.success("现有严格协议验证通过。请核对主口径、字段单位和分析范围后，再明确启动绩效分析。")
     else:
-        st.error(
-            "现有严格协议验证未通过。系统未修改或修复数据，"
-            "当前不能进入绩效分析。"
-        )
+        st.error("现有严格协议验证未通过。系统未修改或修复数据，当前不能进入绩效分析。")
 
 
 def _build_generic_analysis_artifacts(
@@ -1196,15 +1128,11 @@ def _render_generic_analysis_bridge(
         _invalidate_generic_analysis(notify=False)
         strict_result = validate_standardized_result(standardization_result)
         st.session_state[GENERIC_STRICT_RESULT_KEY] = strict_result
-        st.session_state[GENERIC_STRICT_RESULT_KEY_KEY] = (
-            strict_result.analysis_request_key
-        )
+        st.session_state[GENERIC_STRICT_RESULT_KEY_KEY] = strict_result.analysis_request_key
         strict_is_current = True
 
     if not (isinstance(strict_result, StrictProtocolResult) and strict_is_current):
-        st.caption(
-            "尚未执行严格协议验证；标准化预检通过不等于现有严格协议验证通过。"
-        )
+        st.caption("尚未执行严格协议验证；标准化预检通过不等于现有严格协议验证通过。")
         return
 
     _render_strict_protocol_result(strict_result)
@@ -1213,8 +1141,7 @@ def _render_generic_analysis_bridge(
         return
 
     confirmation_key = (
-        f"{GENERIC_ANALYSIS_STATE_PREFIX}:final_confirmation:"
-        f"{strict_result.analysis_request_key}"
+        f"{GENERIC_ANALYSIS_STATE_PREFIX}:final_confirmation:{strict_result.analysis_request_key}"
     )
     final_confirmation = st.checkbox(
         "我已核对日期、收益率或净值字段的定义与单位，"
@@ -1223,10 +1150,7 @@ def _render_generic_analysis_bridge(
     )
     start_clicked = st.button(
         "开始绩效分析",
-        key=(
-            f"{GENERIC_ANALYSIS_STATE_PREFIX}:start:"
-            f"{strict_result.analysis_request_key}"
-        ),
+        key=(f"{GENERIC_ANALYSIS_STATE_PREFIX}:start:{strict_result.analysis_request_key}"),
         disabled=not final_confirmation,
         type="primary",
         help="勾选最终确认后，才会调用现有绩效、图表、报告和导出流程。",
@@ -1234,9 +1158,7 @@ def _render_generic_analysis_bridge(
     if start_clicked:
         artifacts = _build_generic_analysis_artifacts(strict_result)
         st.session_state[GENERIC_ANALYSIS_RESULT_KEY] = artifacts
-        st.session_state[GENERIC_ANALYSIS_RESULT_KEY_KEY] = (
-            artifacts.analysis_request_key
-        )
+        st.session_state[GENERIC_ANALYSIS_RESULT_KEY_KEY] = artifacts.analysis_request_key
 
     artifacts = st.session_state.get(GENERIC_ANALYSIS_RESULT_KEY)
     artifacts_key = st.session_state.get(GENERIC_ANALYSIS_RESULT_KEY_KEY)
@@ -1272,10 +1194,7 @@ def _render_standardization_preview(
 ) -> None:
     """仅在用户主动点击后生成并保留当前会话的标准化预览。"""
     st.markdown("### 8.2 标准化转换与数据质量预检")
-    st.warning(
-        "当前仅生成标准化预览并执行数据质量预检，"
-        "尚未进入现有严格分析协议或绩效计算。"
-    )
+    st.warning("当前仅生成标准化预览并执行数据质量预检，尚未进入现有严格分析协议或绩效计算。")
     current_result = st.session_state.get(STANDARDIZATION_RESULT_KEY)
     if isinstance(current_result, StandardizationResult) and not (
         is_standardization_result_current(current_result, confirmed)
@@ -1290,10 +1209,7 @@ def _render_standardization_preview(
         "生成标准化预览",
         key=f"{STANDARDIZATION_STATE_PREFIX}:generate:{mapping_key}",
         type="primary",
-        help=(
-            "只在内存中创建新的 DataFrame 并执行预检；"
-            "不会启动绩效分析、生成图表或提供下载。"
-        ),
+        help=("只在内存中创建新的 DataFrame 并执行预检；不会启动绩效分析、生成图表或提供下载。"),
     )
     if generate:
         _invalidate_generic_analysis()
@@ -1307,9 +1223,7 @@ def _render_standardization_preview(
         _render_generic_analysis_bridge(current_result, file_name)
     else:
         st.caption("尚未生成预览；请确认映射无误后主动点击上方按钮。")
-    st.caption(
-        "本节不会自动转换收益率单位，也不会自动启动绩效、图表、报告或导出。"
-    )
+    st.caption("本节不会自动转换收益率单位，也不会自动启动绩效、图表、报告或导出。")
 
 
 def _render_field_mapping(
@@ -1319,10 +1233,7 @@ def _render_field_mapping(
 ) -> None:
     """收集并显式确认字段引用，确认后仍不进入业务分析。"""
     st.markdown("### 8. 确认字段映射")
-    st.warning(
-        "高置信度建议仍需用户核对。系统不会自动判断收益率单位，"
-        "也不会修改原始数据。"
-    )
+    st.warning("高置信度建议仍需用户核对。系统不会自动判断收益率单位，也不会修改原始数据。")
     if _prepare_mapping_session_state(source_key):
         st.warning("文件或解析设置已变化，请重新确认字段映射。")
     if st.session_state.pop(STANDARDIZATION_INVALIDATED_KEY, False):
@@ -1372,9 +1283,7 @@ def _render_field_mapping(
                 key=_mapping_widget_key(role, source_key),
                 help="请选择原始字段名称；同一个原始字段不能承担多个角色。",
             )
-            role_to_column[role] = (
-                None if selected_option == UNMAPPED_OPTION else selected_option
-            )
+            role_to_column[role] = None if selected_option == UNMAPPED_OPTION else selected_option
             if recommended is None:
                 recommendation_text = "字段首选建议：未识别"
             else:
@@ -1382,9 +1291,7 @@ def _render_field_mapping(
                     f"字段首选建议：{recommended.column_name} · "
                     f"{recommended.confidence} · {recommended.score} 分"
                 )
-            st.caption(
-                f"{_role_requirement(role, primary_basis)} · {recommendation_text}"
-            )
+            st.caption(f"{_role_requirement(role, primary_basis)} · {recommendation_text}")
 
         acknowledgement = st.checkbox(
             "我已核对字段含义，并理解系统不会自动判断收益率单位、"
@@ -1442,8 +1349,7 @@ def _render_field_mapping(
             previous_confirmed = st.session_state.get(MAPPING_CONFIRMED_KEY)
             if (
                 isinstance(previous_confirmed, ConfirmedMapping)
-                and build_mapping_key(previous_confirmed)
-                != build_mapping_key(new_confirmed)
+                and build_mapping_key(previous_confirmed) != build_mapping_key(new_confirmed)
                 and _invalidate_standardization_preview()
             ):
                 st.session_state.pop(STANDARDIZATION_INVALIDATED_KEY, None)
@@ -1481,12 +1387,10 @@ def _render_diagnostics(diagnostics: object) -> None:
     diagnostic_columns[2].metric("不一致比例", f"{mismatch_ratio:.2%}")
     difference_columns = st.columns(2)
     difference_columns[0].write(
-        "**最大绝对差异（BP）**  \n"
-        f"{_format_basis_points(diagnostics.max_absolute_difference)}"
+        f"**最大绝对差异（BP）**  \n{_format_basis_points(diagnostics.max_absolute_difference)}"
     )
     difference_columns[1].write(
-        "**平均绝对差异（BP）**  \n"
-        f"{_format_basis_points(diagnostics.mean_absolute_difference)}"
+        f"**平均绝对差异（BP）**  \n{_format_basis_points(diagnostics.mean_absolute_difference)}"
     )
     if diagnostics.mismatch_count > 0:
         st.warning(
@@ -1495,9 +1399,7 @@ def _render_diagnostics(diagnostics: object) -> None:
         )
         with st.expander("查看前 10 条不一致记录"):
             mismatch_preview = diagnostics.mismatches.head(10).copy()
-            mismatch_preview["difference_bps"] = (
-                mismatch_preview["difference"] * 10000
-            )
+            mismatch_preview["difference_bps"] = mismatch_preview["difference"] * 10000
             st.dataframe(mismatch_preview, width="stretch")
     else:
         st.success("daily_ret 与 nav_strat 推导收益在容差 1e-8 内一致。")

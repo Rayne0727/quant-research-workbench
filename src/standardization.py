@@ -6,15 +6,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 import math
-from numbers import Integral, Real
 import re
-from typing import Final, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
+from numbers import Integral, Real
+from typing import Final
 
 import pandas as pd
 
@@ -25,7 +26,6 @@ from src.field_mapping import (
     PRIMARY_BASIS_RETURN,
     ConfirmedMapping,
 )
-
 
 STANDARDIZATION_POLICY_VERSION: Final = "b4a-standardization-v1"
 MAPPING_KEY_POLICY_VERSION: Final = "b3-confirmed-mapping-v1"
@@ -40,9 +40,7 @@ _ISO_DATETIME_PATTERN = re.compile(
     r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}"
     r"(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})?$"
 )
-_PLAIN_NUMBER_PATTERN = re.compile(
-    r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$"
-)
+_PLAIN_NUMBER_PATTERN = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 
 _RETURN_ANALYSIS_ROLES: Final = (
     ("date", "date"),
@@ -298,9 +296,7 @@ def _normalize_timestamp(value: object) -> tuple[pd.Timestamp, bool, bool]:
     timestamp = pd.Timestamp(value)
     if pd.isna(timestamp):
         raise ValueError("日期为空")
-    has_timezone = bool(
-        timestamp.tzinfo is not None and timestamp.utcoffset() is not None
-    )
+    has_timezone = bool(timestamp.tzinfo is not None and timestamp.utcoffset() is not None)
     has_time = bool(
         timestamp.hour
         or timestamp.minute
@@ -343,15 +339,13 @@ def _parse_date_series(series: pd.Series) -> _DateParseResult:
     timezone_count = 0
 
     for value in series.tolist():
-        if _is_explicit_missing(value) or (
-            not isinstance(value, str) and bool(pd.isna(value))
-        ):
+        if _is_explicit_missing(value) or (not isinstance(value, str) and bool(pd.isna(value))):
             parsed_values.append(pd.NaT)
             missing_count += 1
             continue
         try:
             parsed, has_time, has_timezone = _parse_date_value(value)
-        except (OverflowError, TypeError, ValueError):
+        except OverflowError, TypeError, ValueError:
             parsed_values.append(pd.NaT)
             invalid_count += 1
             continue
@@ -467,10 +461,7 @@ def _add_return_checks(
         role=role,
         column_name=column_name,
         row_count=floor_count,
-        message=(
-            f"收益字段“{column_name}”存在小于或等于 -1 的值；"
-            "系统不会截断或修正。"
-        ),
+        message=(f"收益字段“{column_name}”存在小于或等于 -1 的值；系统不会截断或修正。"),
     )
 
     count = len(finite)
@@ -494,8 +485,7 @@ def _add_return_checks(
             column_name=column_name,
             row_count=large_count,
             message=(
-                f"收益字段“{column_name}”的数值尺度可能使用百分数单位；"
-                "系统不会自动除以 100。"
+                f"收益字段“{column_name}”的数值尺度可能使用百分数单位；系统不会自动除以 100。"
             ),
         )
     if extreme_count / count >= 0.2:
@@ -617,8 +607,7 @@ def _add_nav_checks(
             column_name=column_name,
             row_count=1,
             message=(
-                f"净值字段“{column_name}”初始值明显不接近 1；"
-                "这不是阻断问题，系统不会归一化。"
+                f"净值字段“{column_name}”初始值明显不接近 1；这不是阻断问题，系统不会归一化。"
             ),
         )
     if len(finite) >= 2:
@@ -653,10 +642,7 @@ def _add_nav_checks(
             role=role,
             column_name=column_name,
             row_count=len(finite),
-            message=(
-                f"净值字段“{column_name}”的尺度更像账户资产或价格指数；"
-                "系统不会自动归一化。"
-            ),
+            message=(f"净值字段“{column_name}”的尺度更像账户资产或价格指数；系统不会自动归一化。"),
         )
 
 
@@ -683,8 +669,7 @@ def _add_date_checks(
         column_name=column_name,
         row_count=parsed.invalid_count,
         message=(
-            f"日期字段“{column_name}”存在无法按确定性白名单解析的非空值；"
-            "系统不会根据地区环境猜测。"
+            f"日期字段“{column_name}”存在无法按确定性白名单解析的非空值；系统不会根据地区环境猜测。"
         ),
     )
     valid = parsed.series.dropna()
@@ -715,10 +700,7 @@ def _add_date_checks(
         role="date",
         column_name=column_name,
         row_count=natural_duplicate_count,
-        message=(
-            "含时间的日期在统一时区规则后落入同一自然日；"
-            "系统不会自动聚合这些记录。"
-        ),
+        message=("含时间的日期在统一时区规则后落入同一自然日；系统不会自动聚合这些记录。"),
     )
     non_increasing_count = 0
     if len(valid) >= 2:
@@ -765,9 +747,7 @@ def _add_date_checks(
         )
     if len(valid) >= 3:
         positive_differences = valid.diff().dropna()
-        positive_differences = positive_differences[
-            positive_differences > pd.Timedelta(0)
-        ]
+        positive_differences = positive_differences[positive_differences > pd.Timedelta(0)]
         if positive_differences.nunique() > 1:
             _add_issue(
                 issues,
@@ -806,8 +786,7 @@ def _numeric_agreement(
     if paired.empty:
         return 1.0, 0
     finite_mask = paired.apply(
-        lambda row: math.isfinite(float(row["left"]))
-        and math.isfinite(float(row["right"])),
+        lambda row: math.isfinite(float(row["left"])) and math.isfinite(float(row["right"])),
         axis=1,
     )
     paired = paired[finite_mask]
@@ -835,9 +814,7 @@ def _add_cross_field_diagnostics(
                 level=WARNING,
                 code="strategy_nav_return_mismatch",
                 role=confirmed_mapping.primary_basis,
-                column_name=confirmed_mapping.role_to_column.get(
-                    confirmed_mapping.primary_basis
-                ),
+                column_name=confirmed_mapping.role_to_column.get(confirmed_mapping.primary_basis),
                 row_count=count,
                 message=(
                     "策略收益率与策略净值只读推导结果明显不一致；"
@@ -859,8 +836,7 @@ def _add_cross_field_diagnostics(
                 column_name=confirmed_mapping.role_to_column.get("drawdown"),
                 row_count=count,
                 message=(
-                    "回撤字段与策略净值只读推导结果明显不一致；"
-                    "用户回撤不会覆盖未来系统计算。"
+                    "回撤字段与策略净值只读推导结果明显不一致；用户回撤不会覆盖未来系统计算。"
                 ),
             )
 
@@ -963,24 +939,19 @@ def _add_mapping_warnings(
             level=WARNING,
             code="mapping_differs_from_b2",
             role=role,
-            column_name=(
-                confirmed_mapping.role_to_column.get(role) if role else None
-            ),
+            column_name=(confirmed_mapping.role_to_column.get(role) if role else None),
             row_count=1,
             message=warning,
         )
-    if (
-        confirmed_mapping.role_to_column.get("strategy_return")
-        and confirmed_mapping.role_to_column.get("strategy_nav")
-    ):
+    if confirmed_mapping.role_to_column.get(
+        "strategy_return"
+    ) and confirmed_mapping.role_to_column.get("strategy_nav"):
         _add_issue(
             issues,
             level=WARNING,
             code="multiple_strategy_basis_mapped",
             role=confirmed_mapping.primary_basis,
-            column_name=confirmed_mapping.role_to_column.get(
-                confirmed_mapping.primary_basis
-            ),
+            column_name=confirmed_mapping.role_to_column.get(confirmed_mapping.primary_basis),
             row_count=1,
             message=(
                 "同时映射了策略收益率和策略净值；"

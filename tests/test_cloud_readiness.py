@@ -1,7 +1,7 @@
 """不联网验证 CI、依赖和云端运行准备。"""
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
@@ -9,7 +9,6 @@ from src.templates import (
     generate_comparison_template_csv,
     generate_daily_returns_template_csv,
 )
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CI_PATH = PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
@@ -84,16 +83,12 @@ def test_page_privacy_notice_distinguishes_local_and_cloud_processing() -> None:
 def test_runtime_and_development_requirements_are_separated() -> None:
     runtime_lines = {
         line.strip()
-        for line in (PROJECT_ROOT / "requirements.txt")
-        .read_text(encoding="utf-8")
-        .splitlines()
+        for line in (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
         if line.strip()
     }
     development_lines = {
         line.strip()
-        for line in (PROJECT_ROOT / "requirements-dev.txt")
-        .read_text(encoding="utf-8")
-        .splitlines()
+        for line in (PROJECT_ROOT / "requirements-dev.txt").read_text(encoding="utf-8").splitlines()
         if line.strip()
     }
 
@@ -127,9 +122,7 @@ def test_ci_workflow_runs_tests_and_compile_without_deployment_or_secrets() -> N
 
 
 def test_deployment_document_does_not_invent_repository_url() -> None:
-    deployment_text = (PROJECT_ROOT / "docs" / "DEPLOYMENT.md").read_text(
-        encoding="utf-8"
-    )
+    deployment_text = (PROJECT_ROOT / "docs" / "DEPLOYMENT.md").read_text(encoding="utf-8")
 
     assert "https://github.com/" not in deployment_text
     assert "github.com/" not in deployment_text.lower()

@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
-from pathlib import Path, PurePosixPath
 import re
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
 from types import MappingProxyType
-from typing import Final, Mapping
-
+from typing import Final
 
 REFERENCE_ROOT: Final = Path(__file__).resolve().parents[1] / "assets" / "reference_files"
 CATALOG_FILENAME: Final = "catalog.json"
@@ -171,9 +171,7 @@ def _catalog_entry(item: object, *, root: Path) -> ReferenceFileEntry:
         raise ReferenceFileError("catalog 中的文件记录必须是对象。")
     missing = REQUIRED_CATALOG_FIELDS.difference(item)
     if missing:
-        raise ReferenceFileError(
-            "catalog 文件记录缺少字段：" + "、".join(sorted(missing))
-        )
+        raise ReferenceFileError("catalog 文件记录缺少字段：" + "、".join(sorted(missing)))
 
     relative_path = _required_text(item, "relative_path")
     parsed_path = _validate_relative_path(relative_path)
@@ -259,9 +257,7 @@ def validate_reference_catalog(
     for group, expected_count in EXPECTED_GROUP_COUNTS.items():
         actual_count = sum(entry.group == group for entry in entries)
         if actual_count != expected_count:
-            raise ReferenceFileError(
-                f"catalog 分组 {group} 应包含 {expected_count} 个文件。"
-            )
+            raise ReferenceFileError(f"catalog 分组 {group} 应包含 {expected_count} 个文件。")
 
     return ReferenceCatalog(
         schema_version=1,

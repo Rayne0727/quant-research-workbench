@@ -4,7 +4,6 @@ import streamlit as st
 
 from src.config import APP_NAME, APP_VERSION
 
-
 PUBLIC_PRIVACY_NOTICE = (
     "公开云端版本会在云端应用进程中处理上传文件。请勿上传账号密码、"
     "API密钥、交易凭证、个人敏感信息、商业机密或其他受限制数据。"
@@ -103,10 +102,7 @@ def render_home_page() -> None:
         )
     with comparison_column:
         st.markdown("#### 多实验比较")
-        st.write(
-            "比较 2 至 6 份由本工具导出的标准化 CSV，在真实共同交易日期上"
-            "重新计算并对照结果。"
-        )
+        st.write("比较 2 至 6 份由本工具导出的标准化 CSV，在真实共同交易日期上重新计算并对照结果。")
         st.button(
             "进入多实验比较",
             icon=":material/compare_arrows:",
@@ -140,8 +136,7 @@ def render_home_page() -> None:
     step_columns = st.columns(4)
     for column, (title, detail) in zip(step_columns, steps, strict=True):
         column.markdown(
-            f'<div class="qrw-step"><strong>{title}</strong><br>'
-            f'<span>{detail}</span></div>',
+            f'<div class="qrw-step"><strong>{title}</strong><br><span>{detail}</span></div>',
             unsafe_allow_html=True,
         )
 

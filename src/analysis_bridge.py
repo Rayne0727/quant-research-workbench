@@ -6,10 +6,11 @@ does not import performance, reporting, charting, export, or Streamlit code.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
-from typing import Final, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from typing import Final
 
 import pandas as pd
 
@@ -24,7 +25,6 @@ from src.standardization import (
     StandardizationResult,
     is_standardization_result_current,
 )
-
 
 ANALYSIS_BRIDGE_VERSION: Final = "b4b-analysis-bridge-v1"
 STRICT_RETURN_PROTOCOL_VERSION: Final = "standard-daily-return-v1"
@@ -110,9 +110,7 @@ def build_analysis_request_key(
     """为标准化结果和现有协议配置生成稳定 SHA-256 标识。"""
 
     ordered_columns = tuple(
-        input_columns
-        if input_columns is not None
-        else _default_input_columns(primary_basis)
+        input_columns if input_columns is not None else _default_input_columns(primary_basis)
     )
     return _sha256_payload(
         {
@@ -146,16 +144,12 @@ def build_generic_analysis_request(
     if not isinstance(standardization_result, StandardizationResult):
         raise AnalysisBridgeValidationError("标准化预览不存在，请先生成预览。")
     if not standardization_result.is_preview_valid:
-        raise AnalysisBridgeValidationError(
-            "标准化预检未通过，当前不能执行严格协议验证。"
-        )
+        raise AnalysisBridgeValidationError("标准化预检未通过，当前不能执行严格协议验证。")
     if not is_standardization_result_current(
         standardization_result,
         standardization_result.confirmed_mapping,
     ):
-        raise AnalysisBridgeValidationError(
-            "标准化结果已失效，请重新生成标准化预览。"
-        )
+        raise AnalysisBridgeValidationError("标准化结果已失效，请重新生成标准化预览。")
 
     protocol_name, default_protocol_version = _protocol_details(
         standardization_result.primary_basis
@@ -189,9 +183,7 @@ def _adapter_warnings(
 ) -> tuple[str, ...]:
     if diagnostics is None or diagnostics.mismatch_count == 0:
         return ()
-    return (
-        "daily_ret 与净值推导收益存在不一致；当前分析继续以 nav_strat 为主。",
-    )
+    return ("daily_ret 与净值推导收益存在不一致；当前分析继续以 nav_strat 为主。",)
 
 
 def _date_bounds(
@@ -315,7 +307,5 @@ def build_generic_analysis_input(
     if not isinstance(strict_protocol_result, StrictProtocolResult):
         raise AnalysisBridgeValidationError("严格协议验证结果不存在。")
     if not strict_protocol_result.is_valid or strict_protocol_result.validated_frame is None:
-        raise AnalysisBridgeValidationError(
-            "现有严格协议验证未通过，当前不能进入绩效分析。"
-        )
+        raise AnalysisBridgeValidationError("现有严格协议验证未通过，当前不能进入绩效分析。")
     return strict_protocol_result.validated_frame.copy(deep=True)
