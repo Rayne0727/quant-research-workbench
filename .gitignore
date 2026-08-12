@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *.pyc
 .pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
 .streamlit/*
 !.streamlit/config.toml
 *.log

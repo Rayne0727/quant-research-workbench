@@ -33,6 +33,7 @@ Quant Research Workbench（量化研究实验台）是一个用于分析量化�
 - [发布检查清单](docs/RELEASE_CHECKLIST.md)
 - [GitHub 与云部署准备](docs/DEPLOYMENT.md)
 - [安全与数据隐私说明](docs/SECURITY_AND_PRIVACY.md)
+- [Engineering Quality](docs/ENGINEERING_QUALITY.md)
 
 ## 数据隐私边界
 
@@ -276,7 +277,17 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 ```
 
-`requirements-dev.txt` 会先安装运行依赖，再安装 pytest。当前已验证环境为 Python `3.14.2`；CI 使用相同的 `3.14` 主次版本。
+`requirements-dev.txt` 会先安装运行依赖，再安装 pytest、pytest-cov 和 Ruff。当前已验证环境为 Python `3.14.2`；CI 使用相同的 `3.14` 主次版本。
+
+## Engineering Quality
+
+本地工程质量门禁运行 Ruff、formatter、pytest、branch coverage 和 pip check：
+
+```powershell
+.\scripts\check_quality.bat
+```
+
+干净工作区的发布检查使用 `scripts\check_release.bat`，GitHub Actions 运行同等 CI 门禁。配置、覆盖率策略和失败处理见 [Engineering Quality](docs/ENGINEERING_QUALITY.md)。
 
 如果 PowerShell 已允许执行本地脚本，也可以先激活虚拟环境：
 
@@ -331,11 +342,11 @@ python -m pip install -r requirements.txt
 .\scripts\check_release.bat
 ```
 
-脚本依次显示版本、运行全部 pytest、编译 Python 文件并检查 Git 状态。任一步失败都会返回非零状态，不会启动网站或自动提交 Git。
+脚本依次显示版本、运行工程质量门禁、编译 Python 文件并检查 Git 状态。任一步失败都会返回非零状态，不会启动网站或自动提交 Git。
 
 ## GitHub 持续集成与部署状态
 
-仓库内的 `.github/workflows/ci.yml` 会在 push 到 `master`、面向 `master` 的 pull request，以及手动触发时运行 pytest 和 Python 编译检查。工作流只使用 GitHub 官方 checkout 与 setup-python action，不需要 Secrets，也不包含发布或部署步骤。
+仓库内的 `.github/workflows/ci.yml` 会在 push 到 `master`、面向 `master` 的 pull request，以及手动触发时运行 Ruff、formatter、pytest branch coverage、pip check、Python 编译和发布准备静态检查。工作流只使用 GitHub 官方 checkout 与 setup-python action，不需要 Secrets，也不包含发布或部署步骤。
 
 当前只完成 GitHub CI 和云部署文件准备，应用尚未上线，也没有配置 Git remote。未来部署建议先使用私人仓库和私人应用，并在上传前对敏感研究数据脱敏。这里暂不添加 CI 徽章，因为远程仓库地址尚未确定。
 
