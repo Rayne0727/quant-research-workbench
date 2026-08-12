@@ -18,6 +18,7 @@ from numbers import Integral, Real
 from typing import Final
 
 import pandas as pd
+from pandas.api.typing import NaTType
 
 from src.field_detection import ROLE_ORDER
 from src.field_mapping import (
@@ -292,7 +293,7 @@ def _parse_numeric_series(series: pd.Series, target_name: str) -> _NumericParseR
     )
 
 
-def _normalize_timestamp(value: object) -> tuple[pd.Timestamp, bool, bool]:
+def _normalize_timestamp(value: pd.Timestamp | datetime | date) -> tuple[pd.Timestamp, bool, bool]:
     timestamp = pd.Timestamp(value)
     if pd.isna(timestamp):
         raise ValueError("日期为空")
@@ -332,7 +333,7 @@ def _parse_date_value(value: object) -> tuple[pd.Timestamp, bool, bool]:
 
 
 def _parse_date_series(series: pd.Series) -> _DateParseResult:
-    parsed_values: list[pd.Timestamp | pd.NaTType] = []
+    parsed_values: list[pd.Timestamp | NaTType] = []
     missing_count = 0
     invalid_count = 0
     time_count = 0
@@ -353,8 +354,9 @@ def _parse_date_series(series: pd.Series) -> _DateParseResult:
         time_count += int(has_time)
         timezone_count += int(has_timezone)
 
+    converted_values = pd.to_datetime(pd.Series(parsed_values, dtype="object"), errors="coerce")
     parsed_series = pd.Series(
-        pd.to_datetime(parsed_values, errors="coerce"),
+        converted_values.array,
         index=series.index.copy(deep=True),
         name="date",
         dtype="datetime64[ns]",

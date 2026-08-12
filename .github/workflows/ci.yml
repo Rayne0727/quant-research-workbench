@@ -37,6 +37,18 @@ jobs:
       - name: Check Ruff formatting
         run: python -m ruff format --check app.py src tests
 
+      - name: Run Tier 1 strict static typing
+        run: |
+          python -m mypy \
+            src/performance.py \
+            src/adapters.py \
+            src/field_detection.py \
+            src/field_mapping.py \
+            src/standardization.py \
+            src/analysis_bridge.py \
+            --strict \
+            --show-error-codes
+
       - name: Run tests with branch coverage
         run: python -m pytest --cov=src --cov-branch --cov-report=term-missing
 

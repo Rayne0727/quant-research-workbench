@@ -9,19 +9,31 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
-echo [1/4] Running Ruff lint...
+echo [1/5] Running Ruff lint...
 ".venv\Scripts\python.exe" -m ruff check app.py src tests
 if errorlevel 1 exit /b 1
 
-echo [2/4] Checking Ruff formatting...
+echo [2/5] Checking Ruff formatting...
 ".venv\Scripts\python.exe" -m ruff format --check app.py src tests
 if errorlevel 1 exit /b 1
 
-echo [3/4] Running pytest with branch coverage...
+echo [3/5] Running Tier 1 strict static typing...
+".venv\Scripts\python.exe" -m mypy ^
+  src/performance.py ^
+  src/adapters.py ^
+  src/field_detection.py ^
+  src/field_mapping.py ^
+  src/standardization.py ^
+  src/analysis_bridge.py ^
+  --strict ^
+  --show-error-codes
+if errorlevel 1 exit /b 1
+
+echo [4/5] Running pytest with branch coverage...
 ".venv\Scripts\python.exe" -m pytest --cov=src --cov-branch --cov-report=term-missing
 if errorlevel 1 exit /b 1
 
-echo [4/4] Checking installed dependencies...
+echo [5/5] Checking installed dependencies...
 ".venv\Scripts\python.exe" -m pip check
 if errorlevel 1 exit /b 1
 

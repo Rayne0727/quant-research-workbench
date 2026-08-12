@@ -18,3 +18,8 @@ fail_under = 85
 show_missing = true
 skip_covered = false
 precision = 2
+
+[tool.mypy]
+python_version = "3.14"
+show_error_codes = true
+warn_unused_configs = true
