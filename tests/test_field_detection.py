@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
+import src.field_detection as field_detection_module
 from src.field_detection import (
     MAX_CROSS_FIELD_CHECKS,
     MAX_PROFILE_SAMPLE_SIZE,
@@ -260,6 +261,21 @@ def test_large_column_profile_uses_bounded_sample() -> None:
     profile = detect_field_candidates(dataframe).column_profiles["portfolio_return"]
     assert profile.non_null_count == 20_050
     assert profile.analyzed_count == MAX_PROFILE_SAMPLE_SIZE
+
+
+def test_bounded_sample_preserves_non_default_index_and_position_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(field_detection_module, "MAX_PROFILE_SAMPLE_SIZE", 4)
+    series = pd.Series(
+        [10, 20, 30, 40, 50, 60],
+        index=[100, 90, 80, 70, 60, 50],
+    )
+
+    sample = field_detection_module._bounded_non_null_sample(series)
+
+    assert sample.index.tolist() == [100, 90, 70, 50]
+    assert sample.tolist() == [10, 20, 40, 60]
 
 
 def test_wide_frame_does_not_run_all_pairwise_checks() -> None:

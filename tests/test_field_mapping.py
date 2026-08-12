@@ -5,6 +5,7 @@ from dataclasses import fields
 import pandas as pd
 import pytest
 
+import src.field_mapping as field_mapping_module
 from src.field_detection import (
     ROLE_ORDER,
     ColumnProfile,
@@ -173,6 +174,21 @@ def _validate(
         _profiles(frame),
         issues or MappingImportIssues(),
     )
+
+
+def test_numeric_sample_preserves_non_default_index_and_position_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(field_mapping_module, "MAX_PROFILE_SAMPLE_SIZE", 4)
+    series = pd.Series(
+        [10, 20, 30, 40, 50, 60],
+        index=[100, 90, 80, 70, 60, 50],
+    )
+
+    sample = field_mapping_module._numeric_sample(series)
+
+    assert sample.index.tolist() == [100, 90, 70, 50]
+    assert sample.tolist() == [10, 20, 40, 60]
 
 
 def test_high_confidence_conflict_free_candidate_is_prefilled() -> None:

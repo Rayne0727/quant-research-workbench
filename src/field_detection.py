@@ -252,7 +252,7 @@ def _bounded_non_null_sample(series: pd.Series) -> pd.Series:
         return non_null.copy(deep=False)
     denominator = MAX_PROFILE_SAMPLE_SIZE - 1
     positions = [index * (count - 1) // denominator for index in range(MAX_PROFILE_SAMPLE_SIZE)]
-    return non_null.iloc[positions].copy(deep=False)
+    return non_null.take(positions).copy(deep=False)
 
 
 def _semantic_kind(value: object) -> str:

@@ -294,7 +294,7 @@ def _numeric_sample(series: pd.Series) -> pd.Series:
         (index * (len(numeric) - 1)) // (MAX_PROFILE_SAMPLE_SIZE - 1)
         for index in range(MAX_PROFILE_SAMPLE_SIZE)
     ]
-    return numeric.iloc[positions]
+    return numeric.take(positions)
 
 
 def _agreement_ratio(left: pd.Series, right: pd.Series) -> tuple[float, int]:
@@ -395,7 +395,7 @@ def validate_mapping(
                 errors.append("净值主口径必须映射策略净值 strategy_nav。")
 
     selected_by_column: dict[str, list[str]] = {}
-    selected_series: dict[str, pd.Series] = {}
+    selected_series: dict[str, tuple[pd.Series, str]] = {}
     for role in ROLE_ORDER:
         column_name = mapping_draft.role_to_column.get(role)
         if column_name is None:
@@ -408,7 +408,7 @@ def validate_mapping(
         if series is None:
             errors.append(f"{role} 选择的字段“{column_name}”不在当前表格中。")
             continue
-        selected_series[role] = series
+        selected_series[role] = (series, column_name)
         profile = column_profiles.get(column_name)
         if series.isna().all() or (profile is not None and profile.non_null_count == 0):
             errors.append(f"{role} 选择的字段“{column_name}”完全为空。")
@@ -424,8 +424,7 @@ def validate_mapping(
         if len(roles) > 1:
             errors.append(f"原始字段“{column_name}”被映射到多个角色：{', '.join(roles)}。")
 
-    for role, series in selected_series.items():
-        column_name = mapping_draft.role_to_column[role]
+    for role, (series, column_name) in selected_series.items():
         non_null = series.dropna()
         score = mapping_draft.candidate_scores.get(role, {}).get(column_name)
         if score is not None and 45 <= score < 65:
