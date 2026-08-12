@@ -100,6 +100,8 @@ def test_runtime_and_development_requirements_are_separated() -> None:
     }
     assert "-r requirements.txt" in development_lines
     assert "pytest==9.1.1" in development_lines
+    assert "pytest-cov==7.1.0" in development_lines
+    assert "ruff==0.16.2" in development_lines
 
 
 def test_ci_workflow_runs_tests_and_compile_without_deployment_or_secrets() -> None:
@@ -113,9 +115,15 @@ def test_ci_workflow_runs_tests_and_compile_without_deployment_or_secrets() -> N
     assert "push:" in ci_text and "pull_request:" in ci_text
     assert "workflow_dispatch:" in ci_text
     assert "- master" in ci_text
+    assert "python -m pip install -r requirements.txt" in ci_text
     assert "python -m pip install -r requirements-dev.txt" in ci_text
-    assert "python -m pytest" in ci_text
+    assert "python -m ruff check app.py src tests" in ci_text
+    assert "python -m ruff format --check app.py src tests" in ci_text
+    assert "python -m pytest --cov=src --cov-branch --cov-report=term-missing" in ci_text
+    assert ci_text.count("python -m pytest") == 1
+    assert "python -m pip check" in ci_text
     assert "python -m compileall app.py src tests" in ci_text
+    assert "git diff --check" in ci_text
     assert "secrets" not in ci_lower
     assert "deploy" not in ci_lower
     assert "streamlit run" not in ci_lower

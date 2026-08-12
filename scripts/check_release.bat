@@ -12,7 +12,9 @@ if not exist ".venv\Scripts\python.exe" (
 for %%F in (
     requirements.txt
     requirements-dev.txt
+    scripts\check_quality.bat
     .github\workflows\ci.yml
+    docs\ENGINEERING_QUALITY.md
     docs\DEPLOYMENT.md
     docs\SECURITY_AND_PRIVACY.md
 ) do (
@@ -25,10 +27,10 @@ for %%F in (
 ".venv\Scripts\python.exe" -c "from src.config import APP_VERSION; print('APP_VERSION=' + APP_VERSION)"
 if errorlevel 1 exit /b 1
 
-echo [1/3] Running pytest...
-".venv\Scripts\python.exe" -m pytest
+echo [1/3] Running engineering quality gate...
+call scripts\check_quality.bat
 if errorlevel 1 (
-    echo Pytest failed. Release check stopped.
+    echo Engineering quality gate failed. Release check stopped.
     exit /b 1
 )
 

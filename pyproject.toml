@@ -8,3 +8,13 @@ select = ["E", "F", "I", "B", "UP", "RUF"]
 # Audited punctuation used in natural Chinese UI text and docstrings. RUF001,
 # RUF002, and RUF003 remain enabled for every non-whitelisted confusable.
 allowed-confusables = ["（", "）", "，", "：", "；", "？"]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = false
+precision = 2
