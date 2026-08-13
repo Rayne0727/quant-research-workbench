@@ -216,7 +216,7 @@ def _select_delimiter(text: str, delimiter_override: str | None) -> str:
 
     first_line = next((line for line in text.splitlines() if line.strip()), "")
     counts = {candidate: first_line.count(candidate) for candidate in CSV_DELIMITERS}
-    best_delimiter = max(counts, key=counts.get)
+    best_delimiter = max(counts, key=lambda candidate: counts[candidate])
     return best_delimiter if counts[best_delimiter] > 0 else ","
 
 

@@ -23,10 +23,10 @@ A.1a 固定使用 `ruff==0.16.2`，目标 Python 为 3.14，行宽为 100。启�
 
 A.1b 新增 coverage exclusion 为 0。
 
-## A.2a：Tier 1 static typing
+## A.2a / A.2b：渐进式 static typing
 
 静态类型门禁采用渐进式策略，固定使用 Python 3.14、`mypy==2.3.0` 和
-`pandas-stubs==3.0.5.260730`。A.2a 只把以下六个 Tier 1 核心模块纳入 strict gate：
+`pandas-stubs==3.0.5.260730`。A.2a 把以下六个 Tier 1 核心模块纳入 strict gate：
 
 - `src/performance.py`
 - `src/adapters.py`
@@ -35,13 +35,25 @@ A.1b 新增 coverage exclusion 为 0。
 - `src/standardization.py`
 - `src/analysis_bridge.py`
 
-Tier 2、Streamlit/UI 和 Plotly typing 暂缓到独立阶段；当前状态不代表全项目已经 strict typed。
+A.2b 在同一个 strict gate 中新增以下七个 Tier 2 基础设施与分析模块：
+
+- `src/limits.py`
+- `src/data_loader.py`
+- `src/file_import.py`
+- `src/reference_files.py`
+- `src/comparison.py`
+- `src/reporting.py`
+- `src/templates.py`
+
+当前正式 typed boundary 共 13 个模块，全部使用 `mypy --strict`。`src/ui_single.py`、
+`src/ui_comparison.py`、`src/ui_common.py`、`src/ui_reference_files.py` 和 `src/sample_data.py`
+仍明确排除；当前状态不代表全项目已经 strict typed，Streamlit/UI 和 Plotly typing 仍属于后续阶段。
 禁止使用 `type: ignore`、`cast` 或新增 `Any` 隐藏类型债务，也不得全局忽略第三方导入。
 
 `pandas-stubs` 的类型接口有时可能比 pandas runtime API 更窄。遇到冲突时必须先通过测试验证
 真实的运行时行为与数据合同，再选择行为等价且可表达的实现，不能为迎合 stub 改变有效业务逻辑。
 
-单独运行 Tier 1 strict gate：
+单独运行当前 13 模块 strict gate：
 
 ```powershell
 .\.venv\Scripts\python.exe -m mypy `
@@ -51,11 +63,19 @@ Tier 2、Streamlit/UI 和 Plotly typing 暂缓到独立阶段；当前状态不�
   src/field_mapping.py `
   src/standardization.py `
   src/analysis_bridge.py `
+  src/limits.py `
+  src/data_loader.py `
+  src/file_import.py `
+  src/reference_files.py `
+  src/comparison.py `
+  src/reporting.py `
+  src/templates.py `
   --strict `
   --show-error-codes
 ```
 
-GitHub Actions 使用完全相同的六模块边界；任何 Tier 1 typing regression 都会阻止 CI 通过。
+`check_quality.bat` 和 GitHub Actions 使用完全相同的 13 模块边界；任何 Tier 1 或 Tier 2 typing
+regression 都会阻止质量门禁通过。
 
 ## 本地质量检查
 
@@ -75,7 +95,7 @@ GitHub Actions 使用完全相同的六模块边界；任何 Tier 1 typing regre
 
 1. Ruff lint；
 2. Ruff format check；
-3. Tier 1 六模块 strict mypy；
+3. Tier 1 + Tier 2 共 13 模块 strict mypy；
 4. pytest 与 branch coverage；
 5. pip check。
 
@@ -91,12 +111,12 @@ GitHub Actions 使用完全相同的六模块边界；任何 Tier 1 typing regre
 
 ## GitHub Actions
 
-GitHub Actions 在 push 到 `master`、面向 `master` 的 pull request 和手动触发时运行同等门禁：安装运行与开发依赖、Ruff lint、formatter check、Tier 1 strict mypy、pytest branch coverage、pip check、compileall 和发布准备静态检查。CI 不自动修复、不提交文件，也不上传第三方 coverage 平台。
+GitHub Actions 在 push 到 `master`、面向 `master` 的 pull request 和手动触发时运行同等门禁：安装运行与开发依赖、Ruff lint、formatter check、13 模块 strict mypy、pytest branch coverage、pip check、compileall 和发布准备静态检查。CI 不自动修复、不提交文件，也不上传第三方 coverage 平台。
 
 CI 失败时应在本地复现对应命令并修复根因。不得降低 coverage、弱化 Ruff、跳过测试或修改业务期望来换取绿色状态。
 
 ## 范围与不变量
 
-A.2a 不包含 Tier 2/UI/Plotly typing、CodeQL、Dependabot、性能 benchmark 或新业务功能。这些工作属于后续阶段。
+A.2b 不包含 UI/Plotly typing、CodeQL、Dependabot、性能 benchmark 或新业务功能。这些工作属于后续阶段。
 
 工程质量改动不得改变 `APP_VERSION`、v0.2.0 Tag/Release、参考文件字节与 SHA-256、业务计算公式、benchmark/NAV 边界、字段映射确认语义，或 standardization/analysis key 的失效语义。

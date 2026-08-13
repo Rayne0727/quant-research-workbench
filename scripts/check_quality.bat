@@ -17,7 +17,7 @@ echo [2/5] Checking Ruff formatting...
 ".venv\Scripts\python.exe" -m ruff format --check app.py src tests
 if errorlevel 1 exit /b 1
 
-echo [3/5] Running Tier 1 strict static typing...
+echo [3/5] Running 13-module strict static typing...
 ".venv\Scripts\python.exe" -m mypy ^
   src/performance.py ^
   src/adapters.py ^
@@ -25,6 +25,13 @@ echo [3/5] Running Tier 1 strict static typing...
   src/field_mapping.py ^
   src/standardization.py ^
   src/analysis_bridge.py ^
+  src/limits.py ^
+  src/data_loader.py ^
+  src/file_import.py ^
+  src/reference_files.py ^
+  src/comparison.py ^
+  src/reporting.py ^
+  src/templates.py ^
   --strict ^
   --show-error-codes
 if errorlevel 1 exit /b 1

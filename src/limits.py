@@ -1,7 +1,6 @@
 """上传文件大小和数据行数的通用保护。"""
 
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 
@@ -58,7 +57,7 @@ def _get_size_bytes(source: object) -> int | None:
 
     get_value = getattr(source, "getvalue", None)
     if callable(get_value):
-        value: Any = get_value()
+        value: object = get_value()
         if isinstance(value, str):
             return len(value.encode("utf-8"))
         if isinstance(value, (bytes, bytearray, memoryview)):
