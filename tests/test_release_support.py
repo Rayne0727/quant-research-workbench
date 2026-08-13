@@ -20,7 +20,7 @@ from src.config import (
     SINGLE_FILE_MAX_MB,
 )
 from src.data_loader import load_returns_csv
-from src.limits import BYTES_PER_MB, UploadLimitError
+from src.limits import BYTES_PER_MB, UploadLimitError, validate_file_size
 from src.templates import (
     build_comparison_template_data,
     generate_comparison_template_csv,
@@ -37,6 +37,34 @@ class OversizedUpload:
 
     def read(self, *args: object, **kwargs: object) -> bytes:
         raise AssertionError("超限文件不应被读取")
+
+
+class DynamicValueUpload:
+    """模拟只通过动态 getvalue 暴露内容的上传对象。"""
+
+    def __init__(self, value: object) -> None:
+        self.value = value
+
+    def getvalue(self) -> object:
+        return self.value
+
+
+class SeekTellOnlyUpload:
+    """模拟不提供 getvalue、仅提供 seek/tell 的文件流。"""
+
+    def __init__(self, size: int, position: int) -> None:
+        self.length = size
+        self.position = position
+
+    def tell(self) -> int:
+        return self.position
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        if whence == 2:
+            self.position = self.length + offset
+        else:
+            self.position = offset
+        return self.position
 
 
 def test_public_release_config_values_are_valid() -> None:
@@ -121,6 +149,23 @@ def test_single_file_size_limit_fails_before_reading() -> None:
         match=rf"large_single.csv.*允许上限 {SINGLE_FILE_MAX_MB} MB",
     ):
         load_returns_csv(upload)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "value",
+    ("text", b"bytes", bytearray(b"bytes"), memoryview(b"bytes")),
+)
+def test_dynamic_getvalue_content_types_are_measured(value: object) -> None:
+    with pytest.raises(UploadLimitError, match="超过允许上限 0 MB"):
+        validate_file_size(DynamicValueUpload(value), "dynamic.csv", 0)
+
+
+def test_seek_tell_size_check_restores_stream_position() -> None:
+    upload = SeekTellOnlyUpload(size=128, position=7)
+
+    validate_file_size(upload, "stream.csv", 1)
+
+    assert upload.tell() == 7
 
 
 def test_oversized_file_in_comparison_fails_with_filename() -> None:

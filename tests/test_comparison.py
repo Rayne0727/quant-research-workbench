@@ -316,6 +316,16 @@ def test_metrics_are_recalculated_for_common_period() -> None:
         assert row.cumulative_return == pytest.approx(final_nav - 1)
 
 
+def test_metric_observation_counts_preserve_integer_contract() -> None:
+    result = compare_standardized_datasets(_datasets())
+
+    for row in result.metrics_table.itertuples(index=False):
+        assert type(row.nav_observation_count) is int
+        assert type(row.effective_return_count) is int
+        assert row.nav_observation_count == result.common_nav_observations
+        assert row.effective_return_count == result.common_return_observations
+
+
 def test_original_dataframes_are_not_modified() -> None:
     datasets = _datasets()
     originals = [data.copy(deep=True) for _, data in datasets]

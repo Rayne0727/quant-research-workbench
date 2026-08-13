@@ -1,5 +1,6 @@
 """CSV/XLSX 通用文件读取与预览层测试。"""
 
+import csv
 from io import BytesIO
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from src.config import SINGLE_FILE_MAX_MB
 from src.file_import import (
     CSV_ENCODING_ERROR,
     FileImportError,
+    _select_delimiter,
     get_xlsx_sheet_names,
     import_table,
     read_uploaded_bytes,
@@ -94,6 +96,17 @@ def test_auto_detects_supported_csv_delimiters(
 
     assert result.delimiter == delimiter
     assert result.column_names == ("a", "b")
+
+
+def test_delimiter_fallback_tie_uses_first_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_sniff(*args: object, **kwargs: object) -> None:
+        raise csv.Error
+
+    monkeypatch.setattr("src.file_import.csv.Sniffer.sniff", fail_sniff)
+
+    assert _select_delimiter("a,b;c\n1,2;3\n", None) == ","
 
 
 def test_manual_csv_delimiter_override_is_applied() -> None:

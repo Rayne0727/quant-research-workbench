@@ -8,7 +8,7 @@ from math import isclose, isfinite
 import pandas as pd
 
 from src.adapters import DailyReturnDiagnostics
-from src.performance import calculate_drawdown
+from src.performance import MetricValue, calculate_drawdown
 
 FIXED_DISCLAIMER = (
     "以上结果仅基于上传数据及当前计算口径生成，用于研究记录和结果核验，不构成投资建议。"
@@ -32,7 +32,7 @@ class ReportContext:
     end_date: pd.Timestamp
     observation_count: int
     valid_return_count: int
-    metrics: Mapping[str, object]
+    metrics: Mapping[str, MetricValue]
     has_benchmark: bool = False
     diagnostics: DailyReturnDiagnostics | None = None
 
@@ -243,10 +243,18 @@ def generate_comparison_markdown_report(
         "| 实验名称 | 原始开始日期 | 原始结束日期 | 原始净值观察日数 |",
         "| --- | --- | --- | ---: |",
     ]
-    for row in context.coverage_table.itertuples(index=False):
+    original_start_dates = pd.to_datetime(context.coverage_table["original_start_date"])
+    original_end_dates = pd.to_datetime(context.coverage_table["original_end_date"])
+    coverage_rows = context.coverage_table.itertuples(index=False)
+    for row, original_start_date, original_end_date in zip(
+        coverage_rows,
+        original_start_dates,
+        original_end_dates,
+        strict=True,
+    ):
         lines.append(
-            f"| {row.experiment_name} | {_format_date(row.original_start_date)} | "
-            f"{_format_date(row.original_end_date)} | "
+            f"| {row.experiment_name} | {_format_date(original_start_date)} | "
+            f"{_format_date(original_end_date)} | "
             f"{row.original_nav_observation_count} |"
         )
     lines.extend(
@@ -271,13 +279,19 @@ def generate_comparison_markdown_report(
         ]
     )
     for row in context.metrics_table.itertuples(index=False):
+        cumulative_return = _metric_value(row.cumulative_return)
+        annualized_return = _metric_value(row.annualized_return)
+        annualized_volatility = _metric_value(row.annualized_volatility)
+        sharpe_ratio = _metric_value(row.sharpe_ratio)
+        max_drawdown = _metric_value(row.max_drawdown)
+        positive_day_ratio = _metric_value(row.positive_day_ratio)
         lines.append(
-            f"| {row.experiment_name} | {_format_percentage(row.cumulative_return)} | "
-            f"{_format_percentage(row.annualized_return)} | "
-            f"{_format_percentage(row.annualized_volatility)} | "
-            f"{_format_number(row.sharpe_ratio)} | "
-            f"{_format_percentage(row.max_drawdown)} | "
-            f"{_format_percentage(row.positive_day_ratio)} | "
+            f"| {row.experiment_name} | {_format_percentage(cumulative_return)} | "
+            f"{_format_percentage(annualized_return)} | "
+            f"{_format_percentage(annualized_volatility)} | "
+            f"{_format_number(sharpe_ratio)} | "
+            f"{_format_percentage(max_drawdown)} | "
+            f"{_format_percentage(positive_day_ratio)} | "
             f"{row.effective_return_count} |"
         )
     lines.extend(
@@ -345,31 +359,35 @@ def make_standardized_data_filename(experiment_name: str) -> str:
     return f"{safe_name}_standardized_data.csv" if safe_name else "quant_standardized_data.csv"
 
 
-def _finite_number(value: object) -> float | None:
+def _metric_value(value: object) -> MetricValue:
+    """收窄动态 DataFrame 单元格为报告允许的指标标量。"""
+    return value if value is None or isinstance(value, (int, float, pd.Timestamp)) else None
+
+
+def _finite_number(value: MetricValue) -> float | None:
     """将有效有限数值转换为 float，否则返回 None。"""
-    try:
-        numeric_value = float(value)
-    except TypeError, ValueError:
+    if not isinstance(value, (int, float)):
         return None
+    numeric_value = float(value)
     return numeric_value if isfinite(numeric_value) else None
 
 
-def _format_percentage(value: object) -> str:
+def _format_percentage(value: MetricValue) -> str:
     numeric_value = _finite_number(value)
     return "不可用" if numeric_value is None else f"{numeric_value:.2%}"
 
 
-def _format_number(value: object) -> str:
+def _format_number(value: MetricValue) -> str:
     numeric_value = _finite_number(value)
     return "不可用" if numeric_value is None else f"{numeric_value:.2f}"
 
 
-def _format_basis_points(value: object) -> str:
+def _format_basis_points(value: MetricValue) -> str:
     numeric_value = _finite_number(value)
     return "不可用" if numeric_value is None else f"{numeric_value * 10000:.2f} BP"
 
 
-def _format_date(value: object) -> str:
+def _format_date(value: pd.Timestamp) -> str:
     return pd.Timestamp(value).strftime("%Y-%m-%d")
 
 
