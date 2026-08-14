@@ -37,7 +37,7 @@ jobs:
       - name: Check Ruff formatting
         run: python -m ruff format --check app.py src tests
 
-      - name: Run 13-module strict static typing
+      - name: Run 14-module strict static typing
         run: |
           python -m mypy \
             src/performance.py \
@@ -53,6 +53,7 @@ jobs:
             src/comparison.py \
             src/reporting.py \
             src/templates.py \
+            src/run_manifest.py \
             --strict \
             --show-error-codes
 

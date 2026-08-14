@@ -96,6 +96,32 @@ def test_v020_release_documents_are_present_and_current() -> None:
     assert "GitHub 远程仓库已经存在" in deployment_text
 
 
+def test_local_and_ci_strict_typing_targets_include_same_fourteen_modules() -> None:
+    quality_text = Path("scripts/check_quality.bat").read_text(encoding="utf-8")
+    ci_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    typed_modules = (
+        "src/performance.py",
+        "src/adapters.py",
+        "src/field_detection.py",
+        "src/field_mapping.py",
+        "src/standardization.py",
+        "src/analysis_bridge.py",
+        "src/limits.py",
+        "src/data_loader.py",
+        "src/file_import.py",
+        "src/reference_files.py",
+        "src/comparison.py",
+        "src/reporting.py",
+        "src/templates.py",
+        "src/run_manifest.py",
+    )
+
+    assert "14-module strict static typing" in quality_text
+    assert "14-module strict static typing" in ci_text
+    assert all(module in quality_text for module in typed_modules)
+    assert all(module in ci_text for module in typed_modules)
+
+
 def test_daily_returns_template_contains_expected_fields() -> None:
     template = pd.read_csv(BytesIO(generate_daily_returns_template_csv()))
 

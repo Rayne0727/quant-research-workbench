@@ -146,3 +146,38 @@ comparison_drawdown = comparison_nav / comparison_nav.cummax() - 1
 - 多实验最多 `6` 份文件。
 
 任一限制超出时，系统显示实际大小或行数及允许上限，并停止本次处理。
+
+## 10. B.1a 可复现运行身份核心
+
+B.1a 在内部库中定义 `qrw-run-manifest-v1` 单实验清单模型。该阶段只提供不可变模型、
+确定性身份与 JSON 序列化能力，尚未接入 Streamlit 页面或下载按钮；用户可下载的 Manifest
+属于 B.1b，研究包与多实验 Manifest 也不在本阶段范围内。
+
+原始来源摘要使用上传文件的原始字节直接计算 SHA-256，保存为
+`sha256:<64 lowercase hex>`。文件名、路径、修改时间、大小和操作系统元数据均不进入摘要。
+Manifest 最多记录清理后的 basename 作为展示名称，不保留绝对路径，也不写入原始字节、
+原始 CSV 行、session、浏览器或 UI 状态。
+
+实际进入分析引擎的数据采用 `qrw-run-canonicalization-v1` 表示：列顺序由分析模式固定，
+行顺序保持不变，DataFrame index 不参与，不排序、不去重、不填充、不插值。日期使用明确的
+ISO-8601；有时区值统一转为 UTC `Z`，无时区值不按本机时区猜测。有限浮点数使用
+`float.hex()`，正负零统一为正零；NaN 和正负无穷被拒绝。协议允许的缺失值统一为 JSON
+`null`，其他缺失值被拒绝。进入身份的语义字符串使用 Unicode NFC，原始字节不做字符规范化。
+规范化数据的 canonical JSON bytes 计算得到 `standardized_data_sha256`。
+
+`qrw-analysis-identity-v1` 的 `analysis_id` 绑定规范化数据摘要、分析模式、固定消费列顺序、
+`qrw-single-analysis-v1` 语义版本，以及真实影响结果的年化交易日数、无风险利率和波动率
+自由度参数。相同规范化分析数据和分析语义产生相同 `analysis_id`。
+
+`qrw-run-identity-v1` 的 `run_id` 在 `analysis_id` 之外绑定原始来源摘要、输入模式、文件解释、
+映射及转换/验证协议 provenance。`direct_standard`、`generic_import` 和 `nav_adapter` 使用各自的
+冻结 provenance 模型，避免无关的空字段。相同分析内容通过不同来源、映射或转换路径产生
+不同 `run_id`。直接收益与通用收益在分析数据和语义相同时共享 `analysis_id`、但不共享
+`run_id`；NAV 路径保留真实的不同分析模式与消费列语义，不强行与收益路径共享身份。
+
+旧有 `source_key`、`mapping_key`、`standardization_key` 和 `analysis_request_key` 只作为可选
+workflow traceability metadata 保存，不参与两个新身份。应用版本、可选 build revision、Python
+及运行时依赖版本、数据摘要和 `generated_at_utc` 也只是信息字段，不进入身份；因此工程提交、
+生成时间或环境变化不会改写研究身份。完整 Manifest JSON 使用 UTF-8、键排序、紧凑分隔符、
+`ensure_ascii=False`、`allow_nan=False`，且不附加末尾换行。确定性文件名为
+`qrw_run_<run_id 前 16 位十六进制>.json`。

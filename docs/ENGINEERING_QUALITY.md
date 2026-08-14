@@ -45,7 +45,8 @@ A.2b 在同一个 strict gate 中新增以下七个 Tier 2 基础设施与分析
 - `src/reporting.py`
 - `src/templates.py`
 
-当前正式 typed boundary 共 13 个模块，全部使用 `mypy --strict`。`src/ui_single.py`、
+B.1a 将 `src/run_manifest.py` 从新增首日纳入同一个 strict gate。当前正式 typed boundary
+共 14 个模块，全部使用 `mypy --strict`。`src/ui_single.py`、
 `src/ui_comparison.py`、`src/ui_common.py`、`src/ui_reference_files.py` 和 `src/sample_data.py`
 仍明确排除；当前状态不代表全项目已经 strict typed，Streamlit/UI 和 Plotly typing 仍属于后续阶段。
 禁止使用 `type: ignore`、`cast` 或新增 `Any` 隐藏类型债务，也不得全局忽略第三方导入。
@@ -53,7 +54,7 @@ A.2b 在同一个 strict gate 中新增以下七个 Tier 2 基础设施与分析
 `pandas-stubs` 的类型接口有时可能比 pandas runtime API 更窄。遇到冲突时必须先通过测试验证
 真实的运行时行为与数据合同，再选择行为等价且可表达的实现，不能为迎合 stub 改变有效业务逻辑。
 
-单独运行当前 13 模块 strict gate：
+单独运行当前 14 模块 strict gate：
 
 ```powershell
 .\.venv\Scripts\python.exe -m mypy `
@@ -70,11 +71,12 @@ A.2b 在同一个 strict gate 中新增以下七个 Tier 2 基础设施与分析
   src/comparison.py `
   src/reporting.py `
   src/templates.py `
+  src/run_manifest.py `
   --strict `
   --show-error-codes
 ```
 
-`check_quality.bat` 和 GitHub Actions 使用完全相同的 13 模块边界；任何 Tier 1 或 Tier 2 typing
+`check_quality.bat` 和 GitHub Actions 使用完全相同的 14 模块边界；任何已纳入模块的 typing
 regression 都会阻止质量门禁通过。
 
 ## 本地质量检查
@@ -95,7 +97,7 @@ regression 都会阻止质量门禁通过。
 
 1. Ruff lint；
 2. Ruff format check；
-3. Tier 1 + Tier 2 共 13 模块 strict mypy；
+3. 已纳入边界的 14 模块 strict mypy；
 4. pytest 与 branch coverage；
 5. pip check。
 
@@ -111,7 +113,7 @@ regression 都会阻止质量门禁通过。
 
 ## GitHub Actions
 
-GitHub Actions 在 push 到 `master`、面向 `master` 的 pull request 和手动触发时运行同等门禁：安装运行与开发依赖、Ruff lint、formatter check、13 模块 strict mypy、pytest branch coverage、pip check、compileall 和发布准备静态检查。CI 不自动修复、不提交文件，也不上传第三方 coverage 平台。
+GitHub Actions 在 push 到 `master`、面向 `master` 的 pull request 和手动触发时运行同等门禁：安装运行与开发依赖、Ruff lint、formatter check、14 模块 strict mypy、pytest branch coverage、pip check、compileall 和发布准备静态检查。CI 不自动修复、不提交文件，也不上传第三方 coverage 平台。
 
 CI 失败时应在本地复现对应命令并修复根因。不得降低 coverage、弱化 Ruff、跳过测试或修改业务期望来换取绿色状态。
 
