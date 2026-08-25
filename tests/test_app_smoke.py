@@ -265,12 +265,18 @@ def test_public_streamlit_configuration_is_valid() -> None:
 
 def test_can_enter_single_analysis_and_sample_still_renders() -> None:
     app = _open_page(_load_app(), "单实验分析")
+    download_labels = _download_labels(app)
 
     assert not app.exception
     assert app.title[0].value == "单实验分析"
     assert app.radio(key="single_data_mode").value == "使用示例数据"
     assert len(app.get("plotly_chart")) == 2
-    assert "下载标准日频收益 CSV 模板" in _download_labels(app)
+    assert "下载标准日频收益 CSV 模板" in download_labels
+    assert download_labels[-3:] == [
+        "下载分析报告",
+        "下载标准化分析数据",
+        "下载运行清单 JSON",
+    ]
 
 
 def test_single_page_exposes_strict_and_general_import_paths() -> None:
@@ -576,7 +582,11 @@ def test_return_primary_final_confirmation_reuses_full_analysis_output() -> None
     assert "核心指标" in page_text
     assert len(app.get("metric")) == 8
     assert len(app.get("plotly_chart")) == 2
-    assert _download_labels(app) == ["下载分析报告", "下载标准化分析数据"]
+    assert _download_labels(app) == [
+        "下载分析报告",
+        "下载标准化分析数据",
+        "下载运行清单 JSON",
+    ]
 
 
 def test_return_primary_with_benchmark_reuses_existing_benchmark_output() -> None:
@@ -597,7 +607,11 @@ def test_nav_primary_reuses_adapter_metrics_charts_report_and_downloads() -> Non
     assert any(metric.label == "净值观察日数" for metric in app.metric)
     assert any(metric.label == "有效收益日数" for metric in app.metric)
     assert len(app.get("plotly_chart")) == 2
-    assert _download_labels(app) == ["下载分析报告", "下载标准化分析数据"]
+    assert _download_labels(app) == [
+        "下载分析报告",
+        "下载标准化分析数据",
+        "下载运行清单 JSON",
+    ]
     assert "基准累计收益" not in [metric.label for metric in app.metric]
 
 
@@ -1001,8 +1015,8 @@ def test_all_pages_display_version_from_shared_config(page_name: str) -> None:
 
     page_text = _visible_text(app)
 
-    assert APP_VERSION == "0.2.0"
-    assert "v0.2.0" in page_text
+    assert APP_VERSION == "0.3.0"
+    assert "v0.3.0" in page_text
     assert "v0.1.0-rc1" not in page_text
     assert "V0.1.0-RC1" not in page_text
     assert f"V{APP_VERSION.upper()}" not in page_text
@@ -1046,7 +1060,7 @@ def test_ui_modules_do_not_hardcode_release_version() -> None:
     for path in ui_paths:
         source = path.read_text(encoding="utf-8")
         assert "0.1.0-rc1" not in source
-        assert "0.2.0" not in source
+        assert "0.3.0" not in source
     assert all("APP_VERSION.upper()" not in path.read_text(encoding="utf-8") for path in ui_paths)
 
 

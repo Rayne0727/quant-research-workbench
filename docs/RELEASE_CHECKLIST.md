@@ -1,6 +1,6 @@
-# Quant Research Workbench v0.2.0 发布检查清单
+# Quant Research Workbench v0.3.0 发布检查清单
 
-本清单用于准备 v0.2.0 公开功能版本。发布检查应在项目根目录执行：
+本清单用于准备 v0.3.0 公开功能版本。发布检查应在项目根目录执行：
 
 ```powershell
 cmd.exe /d /c "call .venv\Scripts\activate.bat && call scripts\check_release.bat"
@@ -14,11 +14,11 @@ cmd.exe /d /c "call .venv\Scripts\activate.bat && call scripts\check_release.bat
 - [ ] 准备合并前，分支基于最新 `origin/master` 且没有意外分叉。
 - [ ] 合并完成后，本地 `master`、`origin/master` 与 GitHub 远程 `master` 一致。
 - [ ] Git 工作区干净。
-- [ ] `APP_VERSION` 等于 `0.2.0`，并且仍是唯一应用版本来源。
-- [ ] 首页、侧边栏、单实验、多实验、参考文件、使用说明和页脚统一显示 `v0.2.0`。
+- [ ] `APP_VERSION` 等于 `0.3.0`，并且仍是唯一应用版本来源。
+- [ ] 首页、侧边栏、单实验、多实验、参考文件、使用说明和页脚统一显示 `v0.3.0`。
 - [ ] 当前公开 UI 不显示旧 RC 版本。
-- [ ] `CHANGELOG.md` 包含 `v0.2.0`。
-- [ ] `docs/RELEASE_NOTES_v0.2.0.md` 存在。
+- [ ] `CHANGELOG.md` 包含 `v0.3.0`，并保留 v0.2.0 历史记录。
+- [ ] `docs/RELEASE_NOTES_v0.3.0.md` 与历史 v0.2.0 发行说明均存在。
 
 ## 自动化测试
 
@@ -36,7 +36,7 @@ cmd.exe /d /c "call .venv\Scripts\activate.bat && call scripts\check_release.bat
 - [ ] 多实验比较正常，净值和回撤图可用。
 - [ ] 参考文件页正常，静态下载可用。
 - [ ] 使用说明正常，版本格式与其他页面一致。
-- [ ] 五页均显示 `v0.2.0`，不显示旧 RC 版本。
+- [ ] 五页均显示 `v0.3.0`，不显示旧版本或 RC 版本。
 - [ ] 浏览器控制台没有页面错误。
 
 ## 核心功能回归
@@ -49,6 +49,9 @@ cmd.exe /d /c "call .venv\Scripts\activate.bat && call scripts\check_release.bat
 - [ ] 通用净值 CSV 可以完成同一受控流程。
 - [ ] 通用 XLSX 可以选择工作表并完成对应流程。
 - [ ] 报告下载和标准化数据下载保持现有字段与格式。
+- [ ] 四条单实验路径分析成功后均显示“下载运行清单 JSON”。
+- [ ] Manifest JSON 使用 `qrw-run-manifest-v2`，包含完整 analysis/run identity 与来源、数据和环境 provenance。
+- [ ] Manifest 不包含绝对路径、原始数据行、session、browser 或 widget metadata。
 - [ ] 多实验固定示例和标准化 CSV 比较正常。
 - [ ] 参考文件下载字节与 manifest 一致。
 - [ ] 错误示例按预期阶段阻断且不会自动修复。
@@ -68,8 +71,8 @@ cmd.exe /d /c "call .venv\Scripts\activate.bat && call scripts\check_release.bat
 
 ## 文档复核
 
-- [ ] README 显示 `v0.2.0` 和公开功能版本定位。
-- [ ] 用户指南包含通用导入、参考文件和单位核对责任。
+- [ ] README 显示 `v0.3.0` 和 Reproducible Run Manifest 功能定位。
+- [ ] 用户指南包含 Manifest、通用导入、参考文件和单位核对责任。
 - [ ] 数据协议保留现有字段、阻断条件和处理边界。
 - [ ] 部署文档反映 GitHub 仓库、`master` 基线和现有云端部署状态。
 - [ ] 发行说明不声称支持任意格式、自动修复数据或提供投资建议。
@@ -83,3 +86,5 @@ cmd.exe /d /c "call .venv\Scripts\activate.bat && call scripts\check_release.bat
 - [ ] **正式发布资产尚未上传。**
 
 这些操作只能在合并后的 `master` 完成线上生产验收后执行。
+
+线上 spot 至少确认：App 正常加载、五页显示 v0.3.0、成功分析后 Manifest 按钮与 JSON 可用、JSON 满足隐私边界且页面无 traceback。
