@@ -64,6 +64,14 @@ from src.reporting import (
     make_report_filename,
     make_standardized_data_filename,
 )
+from src.run_manifest_integration import (
+    ManifestExport,
+    ManifestIntegrationError,
+    build_direct_nav_manifest_export,
+    build_direct_return_manifest_export,
+    build_generic_nav_manifest_export,
+    build_generic_return_manifest_export,
+)
 from src.standardization import (
     BLOCKING,
     WARNING,
@@ -106,6 +114,7 @@ GENERIC_ANALYSIS_INVALIDATED_KEY = f"{GENERIC_ANALYSIS_STATE_PREFIX}:invalidatio
 GENERIC_ANALYSIS_INVALIDATION_MESSAGE = (
     "文件、解析设置、字段映射或标准化结果已变化，请重新执行严格协议验证。"
 )
+RUN_MANIFEST_EXPORT_KEY = "qrw_run_manifest:export"
 PRIMARY_BASIS_LABELS = {
     "请选择": None,
     "策略收益率为主": PRIMARY_BASIS_RETURN,
@@ -144,6 +153,7 @@ def render_single_page() -> None:
         WeeklyNavValidationError,
         AnalysisBridgeValidationError,
         FileImportError,
+        ManifestIntegrationError,
         UploadLimitError,
     ) as exc:
         st.error(str(exc))
@@ -256,6 +266,12 @@ def _render_single_page() -> None:
         if data_mode == "使用示例数据"
         else uploaded_file
     )
+    if isinstance(data_source, Path):
+        raw_source_bytes = data_source.read_bytes()
+        display_filename = data_source.name
+    else:
+        raw_source_bytes = bytes(data_source.getvalue())
+        display_filename = Path(data_source.name).name
 
     diagnostics = None
     if selected_format == WEEKLY_NAV_FORMAT:
@@ -268,6 +284,23 @@ def _render_single_page() -> None:
         cleaned_data = load_returns_csv(data_source)
         performance_data = add_performance_series(cleaned_data)
         metrics = calculate_performance_metrics(cleaned_data)
+
+    cached_manifest = _cached_manifest_export()
+    if selected_format == WEEKLY_NAV_FORMAT:
+        manifest_export = build_direct_nav_manifest_export(
+            analysis_data=cleaned_data,
+            raw_source_bytes=raw_source_bytes,
+            display_filename=display_filename,
+            cached_export=cached_manifest,
+        )
+    else:
+        manifest_export = build_direct_return_manifest_export(
+            analysis_data=cleaned_data,
+            raw_source_bytes=raw_source_bytes,
+            display_filename=display_filename,
+            cached_export=cached_manifest,
+        )
+    st.session_state[RUN_MANIFEST_EXPORT_KEY] = manifest_export
 
     default_experiment_name = (
         "示例日频收益实验" if data_mode == "使用示例数据" else Path(uploaded_file.name).stem
@@ -285,6 +318,7 @@ def _render_single_page() -> None:
         primary_field=primary_field,
         default_experiment_name=default_experiment_name,
         input_identity=input_identity,
+        manifest_export=manifest_export,
     )
 
 
@@ -299,6 +333,7 @@ def _render_completed_analysis(
     primary_field: str,
     default_experiment_name: str,
     input_identity: str,
+    manifest_export: ManifestExport,
     section_numbers: tuple[str, str, str, str, str, str] = (
         "4",
         "5",
@@ -452,7 +487,7 @@ def _render_completed_analysis(
 
     st.markdown(f"### {export_section}. 结果导出")
     st.caption("下载内容在内存中生成，不会由应用主动写入 data 目录。")
-    download_columns = st.columns(2)
+    download_columns = st.columns(3)
     download_columns[0].download_button(
         "下载分析报告",
         data=markdown_report.encode("utf-8"),
@@ -468,6 +503,14 @@ def _render_completed_analysis(
         file_name=make_standardized_data_filename(experiment_name),
         mime="text/csv; charset=utf-8",
         help="下载可用于多实验比较的标准化分析 CSV。",
+        icon=":material/download:",
+    )
+    download_columns[2].download_button(
+        "下载运行清单 JSON",
+        data=manifest_export.json_bytes,
+        file_name=manifest_export.filename,
+        mime=manifest_export.mime_type,
+        help="记录输入指纹、分析身份、运行血缘与环境信息，用于复现与核验。",
         icon=":material/download:",
     )
 
@@ -595,7 +638,7 @@ def _render_import_result(result: ImportedTable, content: bytes) -> None:
         header_rule="first_row",
         columns=result.column_names,
     )
-    _render_field_mapping(result, detection, source_key)
+    _render_field_mapping(result, detection, source_key, content)
 
     st.markdown("### 9. 流程边界")
     st.info(
@@ -726,6 +769,13 @@ def _mapping_acknowledgement_widget_key(source_key: str) -> str:
     return f"{_mapping_source_state_prefix(source_key)}:acknowledgement"
 
 
+def _cached_manifest_export() -> ManifestExport | None:
+    """Return the single current cached Manifest export, if present."""
+
+    cached = st.session_state.get(RUN_MANIFEST_EXPORT_KEY)
+    return cached if isinstance(cached, ManifestExport) else None
+
+
 def _clear_mapping_session_state() -> None:
     """清除当前会话中的映射选择和确认，不影响上传数据。"""
     had_confirmed_mapping = isinstance(
@@ -751,6 +801,7 @@ def _invalidate_generic_analysis(*, notify: bool = True) -> bool:
             and key != GENERIC_ANALYSIS_INVALIDATED_KEY
         ):
             st.session_state.pop(key, None)
+    st.session_state.pop(RUN_MANIFEST_EXPORT_KEY, None)
     if notify and had_result:
         st.session_state[GENERIC_ANALYSIS_INVALIDATED_KEY] = True
     elif not notify:
@@ -1090,7 +1141,9 @@ def _build_generic_analysis_artifacts(
 
 def _render_generic_analysis_bridge(
     standardization_result: StandardizationResult,
-    file_name: str,
+    imported_table: ImportedTable,
+    raw_source_bytes: bytes,
+    confirmed_mapping: ConfirmedMapping,
 ) -> None:
     """渲染 B.4B 两道显式门禁，并复用现有单实验输出。"""
     st.markdown("### 8.3 严格协议验证与绩效分析")
@@ -1172,6 +1225,28 @@ def _render_generic_analysis_bridge(
 
     is_nav = strict_result.primary_basis == PRIMARY_BASIS_NAV
     source_label = "通用文件导入 · 用户确认映射"
+    cached_manifest = _cached_manifest_export()
+    if is_nav:
+        manifest_export = build_generic_nav_manifest_export(
+            analysis_data=artifacts.cleaned_data,
+            raw_source_bytes=raw_source_bytes,
+            imported_table=imported_table,
+            confirmed_mapping=confirmed_mapping,
+            standardization_result=standardization_result,
+            strict_result=strict_result,
+            cached_export=cached_manifest,
+        )
+    else:
+        manifest_export = build_generic_return_manifest_export(
+            analysis_data=artifacts.cleaned_data,
+            raw_source_bytes=raw_source_bytes,
+            imported_table=imported_table,
+            confirmed_mapping=confirmed_mapping,
+            standardization_result=standardization_result,
+            strict_result=strict_result,
+            cached_export=cached_manifest,
+        )
+    st.session_state[RUN_MANIFEST_EXPORT_KEY] = manifest_export
     _render_completed_analysis(
         cleaned_data=artifacts.cleaned_data,
         performance_data=artifacts.performance_data,
@@ -1180,8 +1255,9 @@ def _render_generic_analysis_bridge(
         selected_format=WEEKLY_NAV_FORMAT if is_nav else STANDARD_RETURN_FORMAT,
         current_mode=source_label,
         primary_field="nav_strat" if is_nav else "strategy_return",
-        default_experiment_name=Path(file_name).stem,
+        default_experiment_name=Path(imported_table.file_name).stem,
         input_identity=f"generic:{strict_result.analysis_request_key}",
+        manifest_export=manifest_export,
         section_numbers=("8.4", "8.5", "8.6", "8.7", "8.8", "8.9"),
         source_label=source_label,
     )
@@ -1190,7 +1266,8 @@ def _render_generic_analysis_bridge(
 def _render_standardization_preview(
     dataframe: pd.DataFrame,
     confirmed: ConfirmedMapping,
-    file_name: str,
+    imported_table: ImportedTable,
+    raw_source_bytes: bytes,
 ) -> None:
     """仅在用户主动点击后生成并保留当前会话的标准化预览。"""
     st.markdown("### 8.2 标准化转换与数据质量预检")
@@ -1220,7 +1297,12 @@ def _render_standardization_preview(
         is_standardization_result_current(current_result, confirmed)
     ):
         _render_standardization_result(current_result)
-        _render_generic_analysis_bridge(current_result, file_name)
+        _render_generic_analysis_bridge(
+            current_result,
+            imported_table,
+            raw_source_bytes,
+            confirmed,
+        )
     else:
         st.caption("尚未生成预览；请确认映射无误后主动点击上方按钮。")
     st.caption("本节不会自动转换收益率单位，也不会自动启动绩效、图表、报告或导出。")
@@ -1230,6 +1312,7 @@ def _render_field_mapping(
     result: ImportedTable,
     detection: DetectionResult,
     source_key: str,
+    raw_source_bytes: bytes,
 ) -> None:
     """收集并显式确认字段引用，确认后仍不进入业务分析。"""
     st.markdown("### 8. 确认字段映射")
@@ -1367,7 +1450,8 @@ def _render_field_mapping(
         _render_standardization_preview(
             result.dataframe,
             confirmed,
-            result.file_name,
+            result,
+            raw_source_bytes,
         )
     else:
         st.info(FIELD_SUGGESTION_BOUNDARY)

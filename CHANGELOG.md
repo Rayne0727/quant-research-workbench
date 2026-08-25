@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.3.0 — 2026-08-25
+
+Quant Research Workbench v0.3.0 为四条单实验路径增加 Reproducible Run Manifest 下载。
+
+### Added
+
+- 分析成功后可下载 `qrw-run-manifest-v2` JSON，包含完整 `analysis_id`、`run_id`、source SHA、规范化数据 SHA、转换 provenance 和运行环境。
+- Direct Standard Return、Direct NAV、Generic Return 和 Generic NAV 共用同一 typed integration 与统一下载入口。
+- Manifest 缓存绑定当前分析、运行、展示文件名、workflow traceability、应用和环境信息；无变化 rerun 保持生成时间稳定。
+- strict mypy typed boundary 从 14 个模块扩展到 15 个模块。
+
+### Unchanged
+
+- 绩效计算、NAV/benchmark 口径、Markdown 报告和标准化 CSV bytes/filename 保持不变。
+- 本版本不包含 B.2 Research Bundle。
+
 ## v0.2.0 — 2026-08-04
 
 Quant Research Workbench v0.2.0 是首个包含完整通用文件导入工作流和参考文件库的公开功能版本。

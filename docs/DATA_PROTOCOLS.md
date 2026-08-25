@@ -1,6 +1,6 @@
 # Quant Research Workbench 数据协议
 
-本文档对应 `v0.2.0`。标准协议字段名区分大小写；通用导入可以生成候选建议并由用户显式确认字段映射，但系统不会自动确认、重命名或修改字段。
+本文档对应 `v0.3.0`。标准协议字段名区分大小写；通用导入可以生成候选建议并由用户显式确认字段映射，但系统不会自动确认、重命名或修改字段。
 
 ## 1. 通用文件读取边界
 
@@ -189,3 +189,9 @@ workflow traceability metadata 保存，不参与两个新身份。应用版本�
 生成时间或环境变化不会改写研究身份。完整 Manifest JSON 使用 UTF-8、键排序、紧凑分隔符、
 `ensure_ascii=False`、`allow_nan=False`，且不附加末尾换行。确定性文件名为
 `qrw_run_<run_id 前 16 位十六进制>.json`。
+
+## 11. B.1b Run Manifest 用户集成
+
+Direct Standard Return、Direct NAV、Generic Return 和 Generic NAV 四条单实验路径在分析成功后均提供“下载运行清单 JSON”。清单必须使用同一次实际进入绩效计算的权威分析 DataFrame 与当前调用链中的原始来源字节生成，不重新读取导出文件，也不重新执行映射、标准化或 NAV adapter。
+
+页面通过统一集成层调用 core serializer 和 filename builder；JSON MIME 为 `application/json`。同一分析在无真实输入变化的 rerun 中复用缓存清单和 `generated_at_utc`。来源、映射、工作表、标准化或协议请求变化会使旧清单失效；仅文件名变化时两个身份保持不变，但展示文件名会更新。

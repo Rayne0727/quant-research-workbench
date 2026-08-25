@@ -45,8 +45,9 @@ A.2b 在同一个 strict gate 中新增以下七个 Tier 2 基础设施与分析
 - `src/reporting.py`
 - `src/templates.py`
 
-B.1a 将 `src/run_manifest.py` 从新增首日纳入同一个 strict gate。当前正式 typed boundary
-共 14 个模块，全部使用 `mypy --strict`。`src/ui_single.py`、
+B.1a 将 `src/run_manifest.py` 从新增首日纳入同一个 strict gate；B.1b 继续纳入
+`src/run_manifest_integration.py`。当前正式 typed boundary 共 15 个模块，全部使用
+`mypy --strict`。`src/ui_single.py`、
 `src/ui_comparison.py`、`src/ui_common.py`、`src/ui_reference_files.py` 和 `src/sample_data.py`
 仍明确排除；当前状态不代表全项目已经 strict typed，Streamlit/UI 和 Plotly typing 仍属于后续阶段。
 禁止使用 `type: ignore`、`cast` 或新增 `Any` 隐藏类型债务，也不得全局忽略第三方导入。
@@ -54,7 +55,7 @@ B.1a 将 `src/run_manifest.py` 从新增首日纳入同一个 strict gate。当�
 `pandas-stubs` 的类型接口有时可能比 pandas runtime API 更窄。遇到冲突时必须先通过测试验证
 真实的运行时行为与数据合同，再选择行为等价且可表达的实现，不能为迎合 stub 改变有效业务逻辑。
 
-单独运行当前 14 模块 strict gate：
+单独运行当前 15 模块 strict gate：
 
 ```powershell
 .\.venv\Scripts\python.exe -m mypy `
@@ -72,11 +73,13 @@ B.1a 将 `src/run_manifest.py` 从新增首日纳入同一个 strict gate。当�
   src/reporting.py `
   src/templates.py `
   src/run_manifest.py `
+  src/run_manifest_integration.py `
   --strict `
   --show-error-codes
 ```
 
-`check_quality.bat` 和 GitHub Actions 使用完全相同的 14 模块边界；任何已纳入模块的 typing
+`check_quality.bat` 和 GitHub Actions 使用完全相同的 15 模块边界；Manifest core 与不依赖
+Streamlit 的 integration orchestration 均在 strict gate 内。任何已纳入模块的 typing
 regression 都会阻止质量门禁通过。
 
 ## 本地质量检查
@@ -97,7 +100,7 @@ regression 都会阻止质量门禁通过。
 
 1. Ruff lint；
 2. Ruff format check；
-3. 已纳入边界的 14 模块 strict mypy；
+3. 已纳入边界的 15 模块 strict mypy；
 4. pytest 与 branch coverage；
 5. pip check。
 
@@ -113,7 +116,7 @@ regression 都会阻止质量门禁通过。
 
 ## GitHub Actions
 
-GitHub Actions 在 push 到 `master`、面向 `master` 的 pull request 和手动触发时运行同等门禁：安装运行与开发依赖、Ruff lint、formatter check、14 模块 strict mypy、pytest branch coverage、pip check、compileall 和发布准备静态检查。CI 不自动修复、不提交文件，也不上传第三方 coverage 平台。
+GitHub Actions 在 push 到 `master`、面向 `master` 的 pull request 和手动触发时运行同等门禁：安装运行与开发依赖、Ruff lint、formatter check、15 模块 strict mypy、pytest branch coverage、pip check、compileall 和发布准备静态检查。CI 不自动修复、不提交文件，也不上传第三方 coverage 平台。
 
 CI 失败时应在本地复现对应命令并修复根因。不得降低 coverage、弱化 Ruff、跳过测试或修改业务期望来换取绿色状态。
 
@@ -121,4 +124,4 @@ CI 失败时应在本地复现对应命令并修复根因。不得降低 coverag
 
 A.2b 不包含 UI/Plotly typing、CodeQL、Dependabot、性能 benchmark 或新业务功能。这些工作属于后续阶段。
 
-工程质量改动不得改变 `APP_VERSION`、v0.2.0 Tag/Release、参考文件字节与 SHA-256、业务计算公式、benchmark/NAV 边界、字段映射确认语义，或 standardization/analysis key 的失效语义。
+未经明确产品发布授权的工程质量改动不得改变 `APP_VERSION`、既有 Tag/Release、参考文件字节与 SHA-256、业务计算公式、benchmark/NAV 边界、字段映射确认语义，或 standardization/analysis key 的失效语义。B.1b 按批准范围将当前应用版本升级为 v0.3.0，但不修改既有 v0.2.0 Tag/Release。
