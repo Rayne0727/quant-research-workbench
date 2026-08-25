@@ -21,10 +21,10 @@ from typing import Final, Literal
 
 import pandas as pd
 
-MANIFEST_SCHEMA_VERSION: Final = "qrw-run-manifest-v1"
+MANIFEST_SCHEMA_VERSION: Final = "qrw-run-manifest-v2"
 CANONICALIZATION_VERSION: Final = "qrw-run-canonicalization-v1"
 ANALYSIS_IDENTITY_VERSION: Final = "qrw-analysis-identity-v1"
-RUN_IDENTITY_VERSION: Final = "qrw-run-identity-v1"
+RUN_IDENTITY_VERSION: Final = "qrw-run-identity-v2"
 SINGLE_ANALYSIS_SEMANTICS_VERSION: Final = "qrw-single-analysis-v1"
 
 DAILY_RETURN_MODE: Final = "daily_return"
@@ -137,9 +137,9 @@ class DirectStandardProvenance:
         )
 
 
-@dataclass(frozen=True)
-class GenericImportProvenance:
-    """Generic CSV/XLSX interpretation, mapping, and transformation provenance."""
+@dataclass(frozen=True, kw_only=True)
+class _GenericProvenance:
+    """Shared, mode-neutral fields for generic-import provenance."""
 
     interpretation: CsvInterpretation | XlsxInterpretation
     mapping: tuple[MappingEntry, ...]
@@ -170,6 +170,35 @@ class GenericImportProvenance:
             object.__setattr__(self, name, _semantic_text(getattr(self, name), name))
 
 
+@dataclass(frozen=True, kw_only=True)
+class GenericReturnProvenance(_GenericProvenance):
+    """Generic return input without NAV-adapter semantics."""
+
+    input_mode: Literal["generic_import"] = field(default=GENERIC_IMPORT_MODE, init=False)
+
+
+@dataclass(frozen=True, kw_only=True)
+class GenericNavProvenance(_GenericProvenance):
+    """Generic NAV input including the result-producing adapter contract."""
+
+    adapter_version: str
+    return_tolerance: float
+    input_mode: Literal["generic_import"] = field(default=GENERIC_IMPORT_MODE, init=False)
+
+    def __post_init__(self) -> None:
+        _GenericProvenance.__post_init__(self)
+        object.__setattr__(
+            self,
+            "adapter_version",
+            _semantic_text(self.adapter_version, "adapter_version"),
+        )
+        object.__setattr__(
+            self,
+            "return_tolerance",
+            _validated_return_tolerance(self.return_tolerance),
+        )
+
+
 @dataclass(frozen=True)
 class NavAdapterProvenance:
     """Direct NAV input interpreted by the existing NAV adapter."""
@@ -191,13 +220,16 @@ class NavAdapterProvenance:
             "adapter_version",
             _semantic_text(self.adapter_version, "adapter_version"),
         )
-        tolerance = float(self.return_tolerance)
-        if not isfinite(tolerance) or tolerance < 0:
-            raise RunManifestError("return_tolerance 必须是非负有限数值。")
-        object.__setattr__(self, "return_tolerance", _normalize_zero(tolerance))
+        object.__setattr__(
+            self,
+            "return_tolerance",
+            _validated_return_tolerance(self.return_tolerance),
+        )
 
 
-RunProvenance = DirectStandardProvenance | GenericImportProvenance | NavAdapterProvenance
+RunProvenance = (
+    DirectStandardProvenance | GenericReturnProvenance | GenericNavProvenance | NavAdapterProvenance
+)
 
 
 @dataclass(frozen=True)
@@ -658,6 +690,13 @@ def _normalize_zero(value: float) -> float:
     return 0.0 if value == 0.0 else value
 
 
+def _validated_return_tolerance(value: float) -> float:
+    tolerance = float(value)
+    if not isfinite(tolerance) or tolerance < 0:
+        raise RunManifestError("return_tolerance 必须是非负有限数值。")
+    return _normalize_zero(tolerance)
+
+
 def _missing_allowed(mode: AnalysisMode, column: str, row_number: int) -> bool:
     if mode == DAILY_RETURN_MODE:
         return column == "benchmark_return"
@@ -692,7 +731,7 @@ def _provenance_identity_payload(provenance: RunProvenance) -> dict[str, object]
             "file_format": "xlsx",
             "sheet_name": provenance.interpretation.sheet_name,
         }
-    return {
+    payload: dict[str, object] = {
         "bridge_version": provenance.bridge_version,
         "input_mode": provenance.input_mode,
         "interpretation": interpretation,
@@ -701,6 +740,10 @@ def _provenance_identity_payload(provenance: RunProvenance) -> dict[str, object]
         "standardization_policy_version": provenance.standardization_policy_version,
         "validation_protocol_version": provenance.validation_protocol_version,
     }
+    if isinstance(provenance, GenericNavProvenance):
+        payload["adapter_version"] = provenance.adapter_version
+        payload["return_tolerance"] = provenance.return_tolerance.hex()
+    return payload
 
 
 def _validate_mode_provenance(
@@ -711,6 +754,10 @@ def _validate_mode_provenance(
         raise RunManifestError("direct_standard 仅对应 daily_return analysis mode。")
     if isinstance(provenance, NavAdapterProvenance) and analysis_mode != NAV_MODE:
         raise RunManifestError("nav_adapter 仅对应 nav analysis mode。")
+    if isinstance(provenance, GenericReturnProvenance) and analysis_mode != DAILY_RETURN_MODE:
+        raise RunManifestError("generic return provenance 仅对应 daily_return analysis mode。")
+    if isinstance(provenance, GenericNavProvenance) and analysis_mode != NAV_MODE:
+        raise RunManifestError("generic NAV provenance 仅对应 nav analysis mode。")
 
 
 def _workflow_keys_payload(keys: WorkflowKeys | None) -> dict[str, object] | None:

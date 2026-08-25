@@ -11,6 +11,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from src.adapters import DEFAULT_RETURN_TOLERANCE
 from src.analysis_bridge import (
     ANALYSIS_BRIDGE_VERSION,
     NAV_ADAPTER_VERSION,
@@ -27,7 +28,8 @@ from src.run_manifest import (
     CsvInterpretation,
     DirectStandardProvenance,
     EnvironmentMetadata,
-    GenericImportProvenance,
+    GenericNavProvenance,
+    GenericReturnProvenance,
     MappingEntry,
     NavAdapterProvenance,
     RunManifestError,
@@ -96,14 +98,14 @@ def _direct(*, workflow_keys: WorkflowKeys | None = None) -> DirectStandardProve
     )
 
 
-def _generic(
+def _generic_return(
     *,
     mapping: tuple[MappingEntry, ...] | None = None,
     standardization_policy: str = STANDARDIZATION_POLICY_VERSION,
     interpretation: CsvInterpretation | XlsxInterpretation | None = None,
     workflow_keys: WorkflowKeys | None = None,
-) -> GenericImportProvenance:
-    return GenericImportProvenance(
+) -> GenericReturnProvenance:
+    return GenericReturnProvenance(
         interpretation=interpretation or CsvInterpretation("utf-8", ","),
         mapping=mapping
         or mapping_entries(
@@ -120,6 +122,30 @@ def _generic(
     )
 
 
+def _generic_nav(
+    *,
+    adapter_version: str = NAV_ADAPTER_VERSION,
+    tolerance: float = DEFAULT_RETURN_TOLERANCE,
+    workflow_keys: WorkflowKeys | None = None,
+) -> GenericNavProvenance:
+    return GenericNavProvenance(
+        interpretation=CsvInterpretation("utf-8", ","),
+        mapping=mapping_entries(
+            {
+                "date": "交易日期",
+                "strategy_nav": "策略净值",
+            }
+        ),
+        mapping_policy_version=MAPPING_KEY_POLICY_VERSION,
+        standardization_policy_version=STANDARDIZATION_POLICY_VERSION,
+        validation_protocol_version=STRICT_NAV_PROTOCOL_VERSION,
+        bridge_version=ANALYSIS_BRIDGE_VERSION,
+        adapter_version=adapter_version,
+        return_tolerance=tolerance,
+        workflow_keys=workflow_keys,
+    )
+
+
 def _nav(*, tolerance: float = 1e-8) -> NavAdapterProvenance:
     return NavAdapterProvenance(
         protocol_version=STRICT_NAV_PROTOCOL_VERSION,
@@ -132,7 +158,7 @@ def _manifest(
     *,
     data: pd.DataFrame | None = None,
     raw_source: bytes = RAW_SOURCE,
-    provenance: DirectStandardProvenance | GenericImportProvenance | None = None,
+    provenance: DirectStandardProvenance | GenericReturnProvenance | None = None,
     application: ApplicationMetadata | None = None,
     environment: EnvironmentMetadata | None = None,
     generated_at: datetime = GENERATED_AT,
@@ -153,10 +179,10 @@ def _manifest(
 
 
 def test_identity_versions_are_independent_from_app_version() -> None:
-    assert MANIFEST_SCHEMA_VERSION == "qrw-run-manifest-v1"
+    assert MANIFEST_SCHEMA_VERSION == "qrw-run-manifest-v2"
     assert CANONICALIZATION_VERSION == "qrw-run-canonicalization-v1"
     assert ANALYSIS_IDENTITY_VERSION == "qrw-analysis-identity-v1"
-    assert RUN_IDENTITY_VERSION == "qrw-run-identity-v1"
+    assert RUN_IDENTITY_VERSION == "qrw-run-identity-v2"
     assert SINGLE_ANALYSIS_SEMANTICS_VERSION == "qrw-single-analysis-v1"
 
 
@@ -242,9 +268,9 @@ def test_analysis_data_change_changes_both_ids() -> None:
 
 
 def test_mapping_change_only_changes_run_id_when_data_is_same() -> None:
-    first = _manifest(provenance=_generic())
+    first = _manifest(provenance=_generic_return())
     second = _manifest(
-        provenance=_generic(
+        provenance=_generic_return(
             mapping=mapping_entries(
                 {
                     "date": "日期",
@@ -259,8 +285,8 @@ def test_mapping_change_only_changes_run_id_when_data_is_same() -> None:
 
 
 def test_standardization_policy_only_changes_run_id() -> None:
-    first = _manifest(provenance=_generic(standardization_policy="standardization-v1"))
-    second = _manifest(provenance=_generic(standardization_policy="standardization-v2"))
+    first = _manifest(provenance=_generic_return(standardization_policy="standardization-v1"))
+    second = _manifest(provenance=_generic_return(standardization_policy="standardization-v2"))
 
     assert first.analysis_identity.analysis_id == second.analysis_identity.analysis_id
     assert first.run_identity.run_id != second.run_identity.run_id
@@ -290,8 +316,8 @@ def test_mapping_dict_insertion_order_does_not_change_run_id() -> None:
     first_mapping = {"date": "交易日期", "strategy_return": "策略收益率"}
     second_mapping = {"strategy_return": "策略收益率", "date": "交易日期"}
 
-    first = _manifest(provenance=_generic(mapping=mapping_entries(first_mapping)))
-    second = _manifest(provenance=_generic(mapping=mapping_entries(second_mapping)))
+    first = _manifest(provenance=_generic_return(mapping=mapping_entries(first_mapping)))
+    second = _manifest(provenance=_generic_return(mapping=mapping_entries(second_mapping)))
 
     assert first.run_identity.run_id == second.run_identity.run_id
 
@@ -301,8 +327,8 @@ def test_mapping_tuple_order_does_not_change_run_id() -> None:
         MappingEntry("strategy_return", "策略收益率"),
         MappingEntry("date", "交易日期"),
     )
-    first = _manifest(provenance=_generic(mapping=entries))
-    second = _manifest(provenance=_generic(mapping=tuple(reversed(entries))))
+    first = _manifest(provenance=_generic_return(mapping=entries))
+    second = _manifest(provenance=_generic_return(mapping=tuple(reversed(entries))))
 
     assert first.run_identity.run_id == second.run_identity.run_id
 
@@ -310,8 +336,8 @@ def test_mapping_tuple_order_does_not_change_run_id() -> None:
 def test_unicode_composed_and_decomposed_strings_have_same_run_id() -> None:
     composed = unicodedata.normalize("NFC", "café")
     decomposed = unicodedata.normalize("NFD", "café")
-    first = _manifest(provenance=_generic(mapping=(MappingEntry("date", composed),)))
-    second = _manifest(provenance=_generic(mapping=(MappingEntry("date", decomposed),)))
+    first = _manifest(provenance=_generic_return(mapping=(MappingEntry("date", composed),)))
+    second = _manifest(provenance=_generic_return(mapping=(MappingEntry("date", decomposed),)))
 
     assert first.run_identity.run_id == second.run_identity.run_id
 
@@ -405,11 +431,11 @@ def test_unconsumed_diagnostic_columns_do_not_change_analysis_id() -> None:
 
 def test_same_workbook_bytes_different_sheet_changes_only_run_id() -> None:
     first = _manifest(
-        provenance=_generic(interpretation=XlsxInterpretation("Sheet1")),
+        provenance=_generic_return(interpretation=XlsxInterpretation("Sheet1")),
         raw_source=b"same workbook bytes",
     )
     second = _manifest(
-        provenance=_generic(interpretation=XlsxInterpretation("Sheet2")),
+        provenance=_generic_return(interpretation=XlsxInterpretation("Sheet2")),
         raw_source=b"same workbook bytes",
     )
 
@@ -488,7 +514,121 @@ def test_canonical_json_ignores_mapping_insertion_order() -> None:
 
 def test_direct_and_generic_share_analysis_id_but_not_run_id() -> None:
     direct = _manifest(provenance=_direct())
-    generic = _manifest(provenance=_generic())
+    generic = _manifest(provenance=_generic_return())
+
+    assert direct.analysis_identity.analysis_id == generic.analysis_identity.analysis_id
+    assert direct.run_identity.run_id != generic.run_identity.run_id
+
+
+def test_same_generic_return_provenance_has_same_run_id_without_nav_fields() -> None:
+    first = _manifest(provenance=_generic_return())
+    second = _manifest(provenance=_generic_return())
+    transformation = manifest_payload(first)["transformation"]
+
+    assert first.run_identity.run_id == second.run_identity.run_id
+    assert "adapter_version" not in transformation
+    assert "return_tolerance" not in transformation
+
+
+def test_generic_nav_adapter_version_changes_only_run_id() -> None:
+    first = build_run_manifest(
+        analysis_data=_nav_frame(),
+        analysis_mode="nav",
+        raw_source_bytes=b"generic nav source",
+        provenance=_generic_nav(adapter_version="adapter-v1"),
+        application=_application(),
+        environment=_environment(),
+        generated_at=GENERATED_AT,
+    )
+    second = build_run_manifest(
+        analysis_data=_nav_frame(),
+        analysis_mode="nav",
+        raw_source_bytes=b"generic nav source",
+        provenance=_generic_nav(adapter_version="adapter-v2"),
+        application=_application(),
+        environment=_environment(),
+        generated_at=GENERATED_AT,
+    )
+
+    assert first.analysis_identity.analysis_id == second.analysis_identity.analysis_id
+    assert first.run_identity.run_id != second.run_identity.run_id
+
+
+def test_generic_nav_return_tolerance_changes_only_run_id() -> None:
+    first = build_run_manifest(
+        analysis_data=_nav_frame(),
+        analysis_mode="nav",
+        raw_source_bytes=b"generic nav source",
+        provenance=_generic_nav(tolerance=1e-8),
+        application=_application(),
+        environment=_environment(),
+        generated_at=GENERATED_AT,
+    )
+    second = build_run_manifest(
+        analysis_data=_nav_frame(),
+        analysis_mode="nav",
+        raw_source_bytes=b"generic nav source",
+        provenance=_generic_nav(tolerance=1e-9),
+        application=_application(),
+        environment=_environment(),
+        generated_at=GENERATED_AT,
+    )
+
+    assert first.analysis_identity.analysis_id == second.analysis_identity.analysis_id
+    assert first.run_identity.run_id != second.run_identity.run_id
+
+
+def test_generic_nav_provenance_is_stable_and_human_readable() -> None:
+    first = build_run_manifest(
+        analysis_data=_nav_frame(),
+        analysis_mode="nav",
+        raw_source_bytes=b"generic nav source",
+        provenance=_generic_nav(tolerance=-0.0),
+        application=_application(),
+        environment=_environment(),
+        generated_at=GENERATED_AT,
+    )
+    second = build_run_manifest(
+        analysis_data=_nav_frame(),
+        analysis_mode="nav",
+        raw_source_bytes=b"generic nav source",
+        provenance=_generic_nav(tolerance=0.0),
+        application=_application(),
+        environment=_environment(),
+        generated_at=GENERATED_AT,
+    )
+    transformation = manifest_payload(first)["transformation"]
+
+    assert first.run_identity.run_id == second.run_identity.run_id
+    assert transformation["adapter_version"] == NAV_ADAPTER_VERSION
+    assert transformation["return_tolerance"] == (0.0).hex()
+
+
+@pytest.mark.parametrize("tolerance", [-1.0, float("nan"), float("inf"), float("-inf")])
+def test_generic_nav_rejects_invalid_return_tolerance(tolerance: float) -> None:
+    with pytest.raises(RunManifestError, match="非负有限"):
+        _generic_nav(tolerance=tolerance)
+
+
+def test_direct_and_generic_nav_share_analysis_id_but_not_run_id() -> None:
+    direct = build_run_manifest(
+        analysis_data=_nav_frame(),
+        analysis_mode="nav",
+        raw_source_bytes=b"nav source",
+        provenance=_nav(),
+        application=_application(),
+        environment=_environment(),
+        generated_at=GENERATED_AT,
+    )
+    generic = build_run_manifest(
+        analysis_data=_nav_frame(),
+        analysis_mode="nav",
+        raw_source_bytes=b"nav source",
+        provenance=_generic_nav(),
+        application=_application(),
+        environment=_environment(),
+        generated_at=GENERATED_AT,
+    )
 
     assert direct.analysis_identity.analysis_id == generic.analysis_identity.analysis_id
     assert direct.run_identity.run_id != generic.run_identity.run_id
@@ -520,11 +660,21 @@ def test_nav_provenance_builds_nav_manifest() -> None:
 
 @pytest.mark.parametrize(
     ("analysis_mode", "provenance"),
-    [("nav", _direct()), ("daily_return", _nav())],
+    [
+        ("nav", _direct()),
+        ("daily_return", _nav()),
+        ("nav", _generic_return()),
+        ("daily_return", _generic_nav()),
+    ],
 )
 def test_provenance_must_match_real_analysis_mode(
     analysis_mode: str,
-    provenance: DirectStandardProvenance | NavAdapterProvenance,
+    provenance: (
+        DirectStandardProvenance
+        | GenericReturnProvenance
+        | GenericNavProvenance
+        | NavAdapterProvenance
+    ),
 ) -> None:
     data = _nav_frame() if analysis_mode == "nav" else _daily_frame()
 
@@ -575,6 +725,32 @@ def test_workflow_keys_are_serialized_but_do_not_define_run_id() -> None:
     assert manifest_payload(first)["transformation"] != manifest_payload(second)["transformation"]
 
 
+def test_generic_nav_workflow_keys_do_not_define_run_id() -> None:
+    first_keys = WorkflowKeys(source_key="a" * 64, analysis_request_key="b" * 64)
+    second_keys = WorkflowKeys(source_key="c" * 64, analysis_request_key="d" * 64)
+    first = build_run_manifest(
+        analysis_data=_nav_frame(),
+        analysis_mode="nav",
+        raw_source_bytes=b"generic nav source",
+        provenance=_generic_nav(workflow_keys=first_keys),
+        application=_application(),
+        environment=_environment(),
+        generated_at=GENERATED_AT,
+    )
+    second = build_run_manifest(
+        analysis_data=_nav_frame(),
+        analysis_mode="nav",
+        raw_source_bytes=b"generic nav source",
+        provenance=_generic_nav(workflow_keys=second_keys),
+        application=_application(),
+        environment=_environment(),
+        generated_at=GENERATED_AT,
+    )
+
+    assert first.run_identity.run_id == second.run_identity.run_id
+    assert manifest_payload(first)["transformation"] != manifest_payload(second)["transformation"]
+
+
 def test_source_sha_is_exact_raw_bytes_only() -> None:
     raw = b"same semantic data\r\n"
 
@@ -607,7 +783,7 @@ def test_golden_reference_file_identity_contract() -> None:
         analysis_data=imported,
         analysis_mode="daily_return",
         raw_source_bytes=raw,
-        provenance=_generic(
+        provenance=_generic_return(
             mapping=mapping_entries(
                 {
                     "date": "交易日期",
@@ -632,7 +808,7 @@ def test_golden_reference_file_identity_contract() -> None:
         "sha256:a102bb94927dd3612f77c34a6fa345d7128b2ad5ebd20a45c349c1f8b80f3898"
     )
     assert manifest.run_identity.run_id == (
-        "sha256:4fe36a699745ef5273b54cd4c414dcc617bd8ec35f5619be7d4c2634910f5bc3"
+        "sha256:6c510ece46649ddee09bc0b7e5728a497589135f6902400eaef548d74424cc2a"
     )
 
 

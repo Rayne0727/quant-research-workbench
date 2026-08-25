@@ -149,9 +149,12 @@ comparison_drawdown = comparison_nav / comparison_nav.cummax() - 1
 
 ## 10. B.1a 可复现运行身份核心
 
-B.1a 在内部库中定义 `qrw-run-manifest-v1` 单实验清单模型。该阶段只提供不可变模型、
+B.1a 在内部库中定义当前生成协议 `qrw-run-manifest-v2` 单实验清单模型。该阶段只提供不可变模型、
 确定性身份与 JSON 序列化能力，尚未接入 Streamlit 页面或下载按钮；用户可下载的 Manifest
 属于 B.1b，研究包与多实验 Manifest 也不在本阶段范围内。
+
+`qrw-run-manifest-v1` 是内部预发布协议；由于它没有明确绑定通用 NAV 的 adapter version 和
+return tolerance，已在首个面向用户的 Manifest 发布前由 v2 取代。
 
 原始来源摘要使用上传文件的原始字节直接计算 SHA-256，保存为
 `sha256:<64 lowercase hex>`。文件名、路径、修改时间、大小和操作系统元数据均不进入摘要。
@@ -169,11 +172,16 @@ ISO-8601；有时区值统一转为 UTC `Z`，无时区值不按本机时区猜�
 `qrw-single-analysis-v1` 语义版本，以及真实影响结果的年化交易日数、无风险利率和波动率
 自由度参数。相同规范化分析数据和分析语义产生相同 `analysis_id`。
 
-`qrw-run-identity-v1` 的 `run_id` 在 `analysis_id` 之外绑定原始来源摘要、输入模式、文件解释、
+`qrw-run-identity-v2` 的 `run_id` 在 `analysis_id` 之外绑定原始来源摘要、输入模式、文件解释、
 映射及转换/验证协议 provenance。`direct_standard`、`generic_import` 和 `nav_adapter` 使用各自的
-冻结 provenance 模型，避免无关的空字段。相同分析内容通过不同来源、映射或转换路径产生
+冻结 provenance 模型，通用收益和通用 NAV 也使用明确的 mode-specific provenance，避免无关的
+空字段。通用 NAV 直接记录 adapter version 与使用稳定十六进制浮点表达的 return tolerance；
+两者均进入 `run_id`。相同分析内容通过不同来源、映射或转换路径产生
 不同 `run_id`。直接收益与通用收益在分析数据和语义相同时共享 `analysis_id`、但不共享
 `run_id`；NAV 路径保留真实的不同分析模式与消费列语义，不强行与收益路径共享身份。
+
+本次升级不改变 `qrw-run-canonicalization-v1`、`qrw-analysis-identity-v1` 或
+`qrw-single-analysis-v1`。
 
 旧有 `source_key`、`mapping_key`、`standardization_key` 和 `analysis_request_key` 只作为可选
 workflow traceability metadata 保存，不参与两个新身份。应用版本、可选 build revision、Python
