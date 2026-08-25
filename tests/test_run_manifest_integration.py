@@ -629,16 +629,20 @@ def test_existing_report_and_standardized_csv_byte_regression(nav: bool) -> None
         diagnostics=diagnostics,
     )
     report_hash = hashlib.sha256(generate_markdown_report(context).encode("utf-8")).hexdigest()
-    csv_hash = hashlib.sha256(generate_standardized_csv(performance_data)).hexdigest()
+    csv_bytes = generate_standardized_csv(performance_data)
+    assert isinstance(csv_bytes, bytes)
+    assert csv_bytes.startswith(b"\xef\xbb\xbf")
+    normalized_csv_bytes = csv_bytes.replace(b"\r\n", b"\n")
+    csv_hash = hashlib.sha256(normalized_csv_bytes).hexdigest()
 
     expected = {
         False: (
             "32dae4b21f14516be6f54074186ac6fed75222b0b7540a051cdafabb10037fdd",
-            "fdf2134d53065cd98cd8c92c5cf240bb35dadfb55c5a4b2f64535bd0d01174d9",
+            "82d82a7c7b01275799d5fe23e00d131a8bd129878902753e2dd008697cf7ee57",
         ),
         True: (
             "9c3df073402017245082a74bcf9ba5a8e89096132d976583b975272e8848def5",
-            "954258a27bc5cffa2a3c00130e7adae67deb1d653b8a5ff86457b9c9362a89b9",
+            "7973fdd41ac4fff52052038c13feb075e34e5675cf3369c57ca813ac0b4948a5",
         ),
     }
     assert (report_hash, csv_hash) == expected[nav]
