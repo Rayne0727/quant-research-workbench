@@ -68,8 +68,8 @@ class SeekTellOnlyUpload:
 
 
 def test_public_release_config_values_are_valid() -> None:
-    assert APP_VERSION == "0.3.0"
-    assert f"v{APP_VERSION}" == "v0.3.0"
+    assert APP_VERSION == "0.4.0"
+    assert f"v{APP_VERSION}" == "v0.4.0"
     assert SINGLE_FILE_MAX_MB > 0
     assert COMPARISON_FILE_MAX_MB > 0
     assert isinstance(MAX_ROWS_PER_FILE, int) and MAX_ROWS_PER_FILE > 0
@@ -77,10 +77,11 @@ def test_public_release_config_values_are_valid() -> None:
     assert MAX_COMPARISON_FILES == 6
 
 
-def test_v030_release_documents_are_present_and_current() -> None:
+def test_v040_release_documents_are_present_and_current() -> None:
     changelog = Path("CHANGELOG.md")
-    release_notes = Path("docs/RELEASE_NOTES_v0.3.0.md")
-    historical_release_notes = Path("docs/RELEASE_NOTES_v0.2.0.md")
+    release_notes = Path("docs/RELEASE_NOTES_v0.4.0.md")
+    v030_release_notes = Path("docs/RELEASE_NOTES_v0.3.0.md")
+    v020_release_notes = Path("docs/RELEASE_NOTES_v0.2.0.md")
     readme_text = Path("README.md").read_text(encoding="utf-8")
     checklist_text = Path("docs/RELEASE_CHECKLIST.md").read_text(encoding="utf-8")
     protocol_text = Path("docs/DATA_PROTOCOLS.md").read_text(encoding="utf-8")
@@ -88,17 +89,18 @@ def test_v030_release_documents_are_present_and_current() -> None:
 
     assert changelog.is_file()
     assert release_notes.is_file()
-    assert "## v0.3.0" in changelog.read_text(encoding="utf-8")
-    assert "# Quant Research Workbench v0.3.0" in release_notes.read_text(encoding="utf-8")
-    assert historical_release_notes.is_file()
-    assert "当前版本：**v0.3.0 公开功能版本**" in readme_text
-    assert checklist_text.startswith("# Quant Research Workbench v0.3.0 发布检查清单")
-    assert "本文档对应 `v0.3.0`" in protocol_text
+    assert "## v0.4.0" in changelog.read_text(encoding="utf-8")
+    assert "# Quant Research Workbench v0.4.0" in release_notes.read_text(encoding="utf-8")
+    assert v030_release_notes.is_file()
+    assert v020_release_notes.is_file()
+    assert "当前版本：**v0.4.0 公开功能版本**" in readme_text
+    assert checklist_text.startswith("# Quant Research Workbench v0.4.0 发布检查清单")
+    assert "本文档对应 `v0.4.0`" in protocol_text
     assert "当前尚未创建远程仓库" not in deployment_text
     assert "GitHub 远程仓库已经存在" in deployment_text
 
 
-def test_local_and_ci_strict_typing_targets_include_same_fifteen_modules() -> None:
+def test_local_and_ci_strict_typing_targets_include_same_sixteen_modules() -> None:
     quality_text = Path("scripts/check_quality.bat").read_text(encoding="utf-8")
     ci_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
     typed_modules = (
@@ -117,10 +119,11 @@ def test_local_and_ci_strict_typing_targets_include_same_fifteen_modules() -> No
         "src/templates.py",
         "src/run_manifest.py",
         "src/run_manifest_integration.py",
+        "src/research_bundle.py",
     )
 
-    assert "15-module strict static typing" in quality_text
-    assert "15-module strict static typing" in ci_text
+    assert "16-module strict static typing" in quality_text
+    assert "16-module strict static typing" in ci_text
     assert all(module in quality_text for module in typed_modules)
     assert all(module in ci_text for module in typed_modules)
 
