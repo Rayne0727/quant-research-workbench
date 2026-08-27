@@ -64,6 +64,7 @@ from src.reporting import (
     make_report_filename,
     make_standardized_data_filename,
 )
+from src.research_bundle import build_research_bundle
 from src.run_manifest_integration import (
     ManifestExport,
     ManifestIntegrationError,
@@ -480,17 +481,24 @@ def _render_completed_analysis(
     )
     analysis_summary = generate_analysis_summary(report_context)
     markdown_report = generate_markdown_report(report_context)
-    standardized_csv = generate_standardized_csv(performance_data)
+    report_bytes = markdown_report.encode("utf-8")
+    standardized_csv_bytes = generate_standardized_csv(performance_data)
+    manifest_bytes = manifest_export.json_bytes
+    research_bundle = build_research_bundle(
+        report_bytes=report_bytes,
+        standardized_csv_bytes=standardized_csv_bytes,
+        manifest_export=manifest_export,
+    )
 
     st.markdown(f"### {summary_section}. 分析摘要")
     st.markdown(analysis_summary)
 
     st.markdown(f"### {export_section}. 结果导出")
     st.caption("下载内容在内存中生成，不会由应用主动写入 data 目录。")
-    download_columns = st.columns(3)
+    download_columns = st.columns(4)
     download_columns[0].download_button(
         "下载分析报告",
-        data=markdown_report.encode("utf-8"),
+        data=report_bytes,
         file_name=make_report_filename(experiment_name),
         mime="text/markdown; charset=utf-8",
         help="下载包含实验信息、指标、诊断与固定声明的 Markdown 报告。",
@@ -499,7 +507,7 @@ def _render_completed_analysis(
     )
     download_columns[1].download_button(
         "下载标准化分析数据",
-        data=standardized_csv,
+        data=standardized_csv_bytes,
         file_name=make_standardized_data_filename(experiment_name),
         mime="text/csv; charset=utf-8",
         help="下载可用于多实验比较的标准化分析 CSV。",
@@ -507,10 +515,18 @@ def _render_completed_analysis(
     )
     download_columns[2].download_button(
         "下载运行清单 JSON",
-        data=manifest_export.json_bytes,
+        data=manifest_bytes,
         file_name=manifest_export.filename,
         mime=manifest_export.mime_type,
         help="记录输入指纹、分析身份、运行血缘与环境信息，用于复现与核验。",
+        icon=":material/download:",
+    )
+    download_columns[3].download_button(
+        "下载研究包 ZIP",
+        data=research_bundle.zip_bytes,
+        file_name=research_bundle.filename,
+        mime=research_bundle.mime_type,
+        help="将分析报告、标准化数据和运行清单打包归档，便于复现、核验与分享。",
         icon=":material/download:",
     )
 

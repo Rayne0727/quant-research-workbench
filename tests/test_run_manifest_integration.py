@@ -215,7 +215,7 @@ def test_runtime_metadata_builders_use_current_application_and_packages() -> Non
     environment = build_environment_metadata()
 
     assert application.name == "Quant Research Workbench"
-    assert application.version == "0.3.0"
+    assert application.version == "0.4.0"
     assert application.build_revision is None
     assert environment.python
     assert environment.pandas

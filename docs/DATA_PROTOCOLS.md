@@ -1,6 +1,6 @@
 # Quant Research Workbench 数据协议
 
-本文档对应 `v0.3.0`。标准协议字段名区分大小写；通用导入可以生成候选建议并由用户显式确认字段映射，但系统不会自动确认、重命名或修改字段。
+本文档对应 `v0.4.0`。标准协议字段名区分大小写；通用导入可以生成候选建议并由用户显式确认字段映射，但系统不会自动确认、重命名或修改字段。
 
 ## 1. 通用文件读取边界
 
@@ -195,3 +195,13 @@ workflow traceability metadata 保存，不参与两个新身份。应用版本�
 Direct Standard Return、Direct NAV、Generic Return 和 Generic NAV 四条单实验路径在分析成功后均提供“下载运行清单 JSON”。清单必须使用同一次实际进入绩效计算的权威分析 DataFrame 与当前调用链中的原始来源字节生成，不重新读取导出文件，也不重新执行映射、标准化或 NAV adapter。
 
 页面通过统一集成层调用 core serializer 和 filename builder；JSON MIME 为 `application/json`。同一分析在无真实输入变化的 rerun 中复用缓存清单和 `generated_at_utc`。来源、映射、工作表、标准化或协议请求变化会使旧清单失效；仅文件名变化时两个身份保持不变，但展示文件名会更新。
+
+## 12. B.2 Research Bundle
+
+四条单实验路径分析成功后均提供“下载研究包 ZIP”。文件名固定为 `qrw_bundle_<run_id 前 16 位>.zip`，成员及顺序固定为 `analysis_report.md`、`standardized_data.csv`、`run_manifest.json` 和 `bundle_index.json`。内部路径完全由应用定义，不使用上传文件名、实验名称或其他用户输入。
+
+研究包直接复用同一次页面渲染中三个独立下载的 exact bytes，不重跑绩效、NAV adapter、映射、标准化或 Manifest identity。`bundle_index.json` 使用 `qrw-research-bundle-index-v1`，只记录前三个 artifact 的路径、媒体类型、实际字节长度和 `sha256:<64 lowercase hex>`；它不记录自身、不创建 `bundle_id`，也不进入 `analysis_id` 或 `run_id`。
+
+Manifest 中的 `standardized_data_sha256` 是 canonical analysis representation 摘要；index 中 `standardized_data.csv` 的 SHA-256 是实际 CSV 导出字节摘要，两者语义不同。CSV 的 BOM 和换行字节不做归一化。ZIP 使用固定成员顺序、1980-01-01 时间戳、`ZIP_STORED`、固定 Unix regular-file metadata 和空 comment；只保证相同 builder、相同 ordered member bytes 与相同 metadata 下重复构建得到相同 ZIP bytes，不保证相同 IDs 在任意环境产生相同 ZIP SHA。
+
+研究包默认不包含原始上传文件、原始来源字节、绝对路径、session、browser 或 widget metadata。报告和标准化 CSV 本身仍可能包含用户填写的信息或敏感研究数据，分享前需要由用户确认内容和授权范围。

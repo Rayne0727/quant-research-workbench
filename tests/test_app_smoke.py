@@ -272,10 +272,11 @@ def test_can_enter_single_analysis_and_sample_still_renders() -> None:
     assert app.radio(key="single_data_mode").value == "使用示例数据"
     assert len(app.get("plotly_chart")) == 2
     assert "下载标准日频收益 CSV 模板" in download_labels
-    assert download_labels[-3:] == [
+    assert download_labels[-4:] == [
         "下载分析报告",
         "下载标准化分析数据",
         "下载运行清单 JSON",
+        "下载研究包 ZIP",
     ]
 
 
@@ -301,6 +302,7 @@ def test_general_import_waiting_state_does_not_render_performance_results() -> N
     assert len(app.get("metric")) == 0
     assert len(app.get("plotly_chart")) == 0
     assert len(app.get("download_button")) == 0
+    assert "下载研究包 ZIP" not in _download_labels(app)
 
 
 def test_general_csv_upload_renders_preview_without_performance() -> None:
@@ -586,6 +588,7 @@ def test_return_primary_final_confirmation_reuses_full_analysis_output() -> None
         "下载分析报告",
         "下载标准化分析数据",
         "下载运行清单 JSON",
+        "下载研究包 ZIP",
     ]
 
 
@@ -611,6 +614,7 @@ def test_nav_primary_reuses_adapter_metrics_charts_report_and_downloads() -> Non
         "下载分析报告",
         "下载标准化分析数据",
         "下载运行清单 JSON",
+        "下载研究包 ZIP",
     ]
     assert "基准累计收益" not in [metric.label for metric in app.metric]
 
@@ -1015,8 +1019,8 @@ def test_all_pages_display_version_from_shared_config(page_name: str) -> None:
 
     page_text = _visible_text(app)
 
-    assert APP_VERSION == "0.3.0"
-    assert "v0.3.0" in page_text
+    assert APP_VERSION == "0.4.0"
+    assert "v0.4.0" in page_text
     assert "v0.1.0-rc1" not in page_text
     assert "V0.1.0-RC1" not in page_text
     assert f"V{APP_VERSION.upper()}" not in page_text
@@ -1061,6 +1065,7 @@ def test_ui_modules_do_not_hardcode_release_version() -> None:
         source = path.read_text(encoding="utf-8")
         assert "0.1.0-rc1" not in source
         assert "0.3.0" not in source
+        assert "0.4.0" not in source
     assert all("APP_VERSION.upper()" not in path.read_text(encoding="utf-8") for path in ui_paths)
 
 

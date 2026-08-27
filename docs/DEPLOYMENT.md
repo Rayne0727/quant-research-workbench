@@ -1,6 +1,6 @@
 # GitHub 与 Streamlit 云部署准备
 
-本文档说明 `v0.3.0` 的本地启动、GitHub 集成、Streamlit Community Cloud 更新流程和部署验收边界。GitHub 远程仓库已经存在，`master` 是当前部署基线；Streamlit Community Cloud 已部署该应用，合并到 `master` 后由现有云端部署流程检测并更新。
+本文档说明 `v0.4.0` 的本地启动、GitHub 集成、Streamlit Community Cloud 更新流程和部署验收边界。GitHub 远程仓库已经存在，`master` 是当前部署基线；Streamlit Community Cloud 已部署该应用，合并到 `master` 后由现有云端部署流程检测并更新。
 
 ## 1. GitHub 与部署基线
 
@@ -45,7 +45,7 @@ Streamlit Community Cloud 从 GitHub 仓库读取应用代码、入口文件和�
 
 ## 5. 云端验收清单
 
-- 页面显示 `Quant Research Workbench v0.3.0`；
+- 页面显示 `Quant Research Workbench v0.4.0`；
 - 首页、单实验分析、多实验比较、参考文件和使用说明版本一致；
 - 单实验示例无需 `data/raw` 即可运行；
 - 多实验固定示例正常；
@@ -53,6 +53,8 @@ Streamlit Community Cloud 从 GitHub 仓库读取应用代码、入口文件和�
 - 指标、图表、摘要和内存下载正常；
 - 单实验成功后显示“下载运行清单 JSON”，下载文件为可解析的 `qrw-run-manifest-v2`；
 - Manifest 包含完整 analysis_id、run_id 和 source SHA，不包含绝对路径、原始数据行、session、browser 或 widget metadata；
+- 单实验成功后保留前三个独立下载并新增“下载研究包 ZIP”；ZIP 恰好包含四个固定成员，`bundle_index.json` 为 `qrw-research-bundle-index-v1`；
+- Research Bundle 默认不包含原始上传文件，index SHA 与三个实际 artifact member bytes 一致；
 - 可预期错误显示中文提示且不显示 traceback；
 - 页面明确区分本地处理与云端处理；
 - 构建日志中没有用户数据内容；

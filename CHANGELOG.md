@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.0 — 2026-08-26
+
+Quant Research Workbench v0.4.0 为四条单实验路径增加 Research Bundle ZIP 下载。
+
+### Added
+
+- 固定打包现有 Markdown 报告、标准化 CSV、Run Manifest 和 `qrw-research-bundle-index-v1` 完整性索引。
+- Index 按实际写入 ZIP 的 exact member bytes 记录大小和 SHA-256，不创建 `bundle_id`，也不改变既有 analysis/run identity。
+- ZIP 使用固定成员顺序、时间戳、普通文件权限 metadata 与 `ZIP_STORED`，默认不包含原始上传文件。
+- strict mypy typed boundary 从 15 个模块扩展到 16 个模块。
+
+### Unchanged
+
+- 绩效、NAV、benchmark、mapping、standardization、报告、标准化 CSV 和 Run Manifest 合同保持不变。
+- 本版本不包含 comparison bundle、raw-source bundle 或 B.3。
+
 ## v0.3.0 — 2026-08-25
 
 Quant Research Workbench v0.3.0 为四条单实验路径增加 Reproducible Run Manifest 下载。

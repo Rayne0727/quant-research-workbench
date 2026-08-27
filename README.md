@@ -2,7 +2,7 @@
 
 Quant Research Workbench（量化研究实验台）是一个用于分析量化研究实验结果的本地 Web 应用。
 
-当前版本：**v0.3.0 公开功能版本**。本版本为四条单实验路径增加可下载的 Reproducible Run Manifest；现有绩效计算、报告和标准化数据导出口径保持不变。
+当前版本：**v0.4.0 公开功能版本**。本版本为四条单实验路径增加 Research Bundle ZIP，将现有报告、标准化 CSV、Run Manifest 与完整性索引打包归档；现有绩效计算和三个独立下载的内容与口径保持不变。
 
 当前支持三条受控工作流：
 
@@ -27,7 +27,8 @@ Quant Research Workbench（量化研究实验台）是一个用于分析量化�
 ## 使用文档
 
 - [用户使用指南](docs/USER_GUIDE.md)
-- [v0.3.0 发行说明](docs/RELEASE_NOTES_v0.3.0.md)
+- [v0.4.0 发行说明](docs/RELEASE_NOTES_v0.4.0.md)
+- [v0.3.0 历史发行说明](docs/RELEASE_NOTES_v0.3.0.md)
 - [v0.2.0 历史发行说明](docs/RELEASE_NOTES_v0.2.0.md)
 - [版本记录](CHANGELOG.md)
 - [数据协议](docs/DATA_PROTOCOLS.md)
@@ -58,6 +59,7 @@ Quant Research Workbench（量化研究实验台）是一个用于分析量化�
 - 生成确定性的中文分析摘要和 Markdown 报告；
 - 下载标准化分析数据 CSV；
 - 下载 Reproducible Run Manifest JSON，记录分析身份、运行血缘、来源与规范化数据指纹及环境信息；
+- 下载 Research Bundle ZIP，将三份现有单实验 artifact 与 exact-byte SHA-256 完整性索引打包归档；
 - 对 2 至 6 份标准化分析 CSV 按共同交易日期进行比较；
 - 下载比较指标、共同日期对齐净值和确定性比较报告；
 - 在当前会话中记录可选的实验名称、策略名称和研究备注；
@@ -148,13 +150,14 @@ strategy_return = nav_strat.pct_change()
 
 分析摘要由固定规则生成，不使用 OpenAI API 或其他模型。摘要以中性方式记录数据概况、绩效结果、可选基准信息、数据限制和固定声明。
 
-页面提供三种内存导出，不会把下载内容写入 `data/`：
+页面提供四种内存导出，不会把下载内容写入 `data/`：
 
 - Markdown 分析报告：包含实验信息、核心指标、可选基准结果、适用的一致性诊断和固定声明；
 - 标准化分析 CSV：包含 `date`、`strategy_return`、`strategy_nav`、`drawdown`，存在基准时还包含 `benchmark_return` 和 `benchmark_nav`。
 - Run Manifest JSON：`analysis_id` 标识规范化分析内容与计算语义，`run_id` 标识来源及转换血缘；同时记录 source SHA、规范化数据 SHA 和运行环境，便于复现与核验。
+- Research Bundle ZIP：固定包含 `analysis_report.md`、`standardized_data.csv`、`run_manifest.json` 和 `bundle_index.json`。索引记录前三个成员实际字节的大小和 SHA-256；ZIP 默认不包含原始上传文件。
 
-Run Manifest 不包含原始数据行、绝对路径、浏览器或 session state。它是单次分析的可复现清单，不是 Research Bundle；B.2 研究包尚未实现。
+Run Manifest 与 Research Bundle 不包含原始上传文件、绝对路径、浏览器或 session state。研究包中的报告可能含用户填写的策略名称和研究备注，标准化 CSV 也可能包含敏感研究数据，分享前仍需自行确认内容与授权范围。
 
 每周调仓净值格式导出的第一行 `strategy_return` 为空，`strategy_nav` 第一行为 `1`，净值直接来自 `nav_strat` 标准化结果，不使用 `daily_ret` 重建。
 
