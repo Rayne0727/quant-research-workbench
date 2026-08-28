@@ -356,7 +356,7 @@ python -m pip install -r requirements.txt
 
 仓库内的 `.github/workflows/ci.yml` 会在 push 到 `master`、面向 `master` 的 pull request，以及手动触发时运行 Ruff、formatter、pytest branch coverage、pip check、Python 编译和发布准备静态检查。工作流只使用 GitHub 官方 checkout 与 setup-python action，不需要 Secrets，也不包含发布或部署步骤。
 
-当前只完成 GitHub CI 和云部署文件准备，应用尚未上线，也没有配置 Git remote。未来部署建议先使用私人仓库和私人应用，并在上传前对敏感研究数据脱敏。这里暂不添加 CI 徽章，因为远程仓库地址尚未确定。
+GitHub 远程仓库与 Streamlit Community Cloud 公开部署已经建立，`master` 是当前部署基线。上传敏感研究数据前仍应先脱敏并确认授权范围。这里暂不添加 CI 徽章；CI 状态以 GitHub Actions 为准。
 
 ## 当前版本暂不支持
 
@@ -365,4 +365,4 @@ python -m pip install -r requirements.txt
 - 未经用户提交确认就自动应用、重命名或映射任意字段；
 - 数据库和用户登录；
 - AI 摘要、外部 API 或实时股票数据；
-- Docker、自动部署和已经上线的云端服务；当前仅完成部署准备。
+- Docker、自建部署和本仓库内的自动发布流水线。

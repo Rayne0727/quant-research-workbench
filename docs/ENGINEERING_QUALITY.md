@@ -106,7 +106,7 @@ regression 都会阻止质量门禁通过。
 4. pytest 与 branch coverage；
 5. pip check。
 
-脚本不修改文件，任一步失败都会返回非零状态。
+脚本不修改文件，任一步失败都会返回非零状态。`pip-audit` 不进入本地 `check_quality.bat` 或 `check_release.bat`，避免把需要 advisory 服务的联网检查变成本地确定性门禁。
 
 发布前在干净工作区运行：
 
@@ -118,12 +118,14 @@ regression 都会阻止质量门禁通过。
 
 ## GitHub Actions
 
-GitHub Actions 在 push 到 `master`、面向 `master` 的 pull request 和手动触发时运行同等门禁：安装运行与开发依赖、Ruff lint、formatter check、16 模块 strict mypy、pytest branch coverage、pip check、compileall 和发布准备静态检查。CI 不自动修复、不提交文件，也不上传第三方 coverage 平台。
+GitHub Actions 在 push 到 `master`、面向 `master` 的 pull request 和手动触发时运行同等门禁：安装运行与开发依赖、Ruff lint、formatter check、16 模块 strict mypy、pytest branch coverage、pip check、compileall 和发布准备静态检查。workflow token 只授予 `contents: read`，checkout 不持久化凭证。CI 在依赖安装后使用固定的 `pip-audit==2.10.1` 对 `requirements.txt` 的 runtime dependency graph 执行 vulnerability gate；该联网 gate 的真实 advisory 结果以 PR CI 为准，不在本地报告中伪称通过。CI 不自动修复、不提交文件，也不上传第三方 coverage 平台。
+
+Dependabot 每周检查根目录的 pip 与 GitHub Actions 依赖，每个生态最多同时打开 5 个 PR；未配置自动合并、私有 registry 或 secrets。
 
 CI 失败时应在本地复现对应命令并修复根因。不得降低 coverage、弱化 Ruff、跳过测试或修改业务期望来换取绿色状态。
 
 ## 范围与不变量
 
-A.2b 不包含 UI/Plotly typing、CodeQL、Dependabot、性能 benchmark 或新业务功能。这些工作属于后续阶段。
+A.2b 不包含 UI/Plotly typing、CodeQL、性能 benchmark 或新业务功能。C.2 仅增加最小权限 CI、Dependabot 和 runtime dependency audit，不扩展 strict typing 边界或产品功能。
 
 未经明确产品发布授权的工程质量改动不得改变 `APP_VERSION`、既有 Tag/Release、参考文件字节与 SHA-256、业务计算公式、benchmark/NAV 边界、字段映射确认语义，或 standardization/analysis key 的失效语义。B.2 按批准范围将当前应用版本升级为 v0.4.0，但不修改既有 v0.3.0 或 v0.2.0 Tag/Release。

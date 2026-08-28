@@ -4,3 +4,4 @@ pytest-cov==7.1.0
 ruff==0.16.2
 mypy==2.3.0
 pandas-stubs==3.0.5.260730
+pip-audit==2.10.1

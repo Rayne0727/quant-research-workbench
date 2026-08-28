@@ -16,6 +16,7 @@ from src.ui_common import (
     RESEARCH_DISCLAIMER,
     SIDEBAR_PRIVACY_NOTICE,
 )
+from src.ui_single import EXPORT_PRIVACY_NOTICE
 
 SENSITIVE_WARNING_TERMS = (
     "请勿上传",
@@ -278,6 +279,7 @@ def test_can_enter_single_analysis_and_sample_still_renders() -> None:
         "下载运行清单 JSON",
         "下载研究包 ZIP",
     ]
+    assert [item.value for item in app.warning].count(EXPORT_PRIVACY_NOTICE) == 1
 
 
 def test_single_page_exposes_strict_and_general_import_paths() -> None:

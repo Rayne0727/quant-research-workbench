@@ -102,6 +102,7 @@ def test_runtime_and_development_requirements_are_separated() -> None:
     assert "pytest==9.1.1" in development_lines
     assert "pytest-cov==7.1.0" in development_lines
     assert "ruff==0.16.2" in development_lines
+    assert "pip-audit==2.10.1" in development_lines
 
 
 def test_ci_workflow_runs_tests_and_compile_without_deployment_or_secrets() -> None:
@@ -109,14 +110,17 @@ def test_ci_workflow_runs_tests_and_compile_without_deployment_or_secrets() -> N
     ci_lower = ci_text.lower()
 
     assert "name: CI" in ci_text
-    assert "actions/checkout@v4" in ci_text
-    assert "actions/setup-python@v5" in ci_text
+    assert "uses: actions/checkout@v7" in ci_text
+    assert "uses: actions/setup-python@v7" in ci_text
     assert 'python-version: "3.14"' in ci_text
     assert "push:" in ci_text and "pull_request:" in ci_text
     assert "workflow_dispatch:" in ci_text
     assert "- master" in ci_text
     assert "python -m pip install -r requirements.txt" in ci_text
     assert "python -m pip install -r requirements-dev.txt" in ci_text
+    assert "permissions:\n  contents: read" in ci_text
+    assert "persist-credentials: false" in ci_text
+    assert "python -m pip_audit -r requirements.txt" in ci_text
     assert "python -m ruff check app.py src tests" in ci_text
     assert "python -m ruff format --check app.py src tests" in ci_text
     assert "python -m pytest --cov=src --cov-branch --cov-report=term-missing" in ci_text
