@@ -1,7 +1,7 @@
 """单实验分析模式的 Streamlit 页面组织。"""
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pandas as pd
@@ -65,6 +65,7 @@ from src.reporting import (
     make_standardized_data_filename,
 )
 from src.research_bundle import build_research_bundle
+from src.run_manifest import compute_source_sha256
 from src.run_manifest_integration import (
     ManifestExport,
     ManifestIntegrationError,
@@ -119,6 +120,9 @@ GENERIC_ANALYSIS_INVALIDATION_MESSAGE = (
     "文件、解析设置、字段映射或标准化结果已变化，请重新执行严格协议验证。"
 )
 RUN_MANIFEST_EXPORT_KEY = "qrw_run_manifest:export"
+XLSX_RERUN_CACHE_KEY = "qrw_general_import:xlsx_rerun_cache"
+XLSX_WORKBOOK_CACHE_CAPACITY = 4
+XLSX_SHEET_CACHE_CAPACITY = 8
 PRIMARY_BASIS_LABELS = {
     "请选择": None,
     "策略收益率为主": PRIMARY_BASIS_RETURN,
@@ -146,6 +150,44 @@ class _GenericAnalysisArtifacts:
     performance_data: pd.DataFrame
     metrics: dict[str, object]
     diagnostics: object | None
+
+
+@dataclass(frozen=True)
+class _XlsxWorkbookCacheKey:
+    """Identify one exact XLSX source for safe sheet-name reuse."""
+
+    source_digest: str
+    file_type: str
+
+
+@dataclass(frozen=True)
+class _XlsxSheetCacheKey:
+    """Identify one parse-equivalent XLSX sheet result within a session."""
+
+    source_digest: str
+    file_type: str
+    file_name: str
+    delimiter: str | None
+    sheet_name: str
+    header_rule: str
+    max_rows: int
+    max_columns: int
+
+
+@dataclass(frozen=True)
+class _CachedXlsxSheet:
+    """Hold one successfully imported, read-only-in-UI sheet result."""
+
+    imported_table: ImportedTable
+    detection: DetectionResult
+
+
+@dataclass
+class _XlsxRerunCache:
+    """Bounded session-local XLSX reuse state; never shared across sessions."""
+
+    workbooks: dict[_XlsxWorkbookCacheKey, tuple[str, ...]] = field(default_factory=dict)
+    sheets: dict[_XlsxSheetCacheKey, _CachedXlsxSheet] = field(default_factory=dict)
 
 
 def render_single_page() -> None:
@@ -541,6 +583,84 @@ def _render_completed_analysis(
         st.dataframe(cleaned_data.head(20), width="stretch")
 
 
+def _xlsx_rerun_cache() -> _XlsxRerunCache:
+    """Return this Streamlit session's bounded XLSX cache."""
+    cached = st.session_state.get(XLSX_RERUN_CACHE_KEY)
+    if isinstance(cached, _XlsxRerunCache):
+        return cached
+    created = _XlsxRerunCache()
+    st.session_state[XLSX_RERUN_CACHE_KEY] = created
+    return created
+
+
+def _remember_xlsx_workbook(
+    cache: _XlsxRerunCache,
+    key: _XlsxWorkbookCacheKey,
+    sheet_names: tuple[str, ...],
+) -> None:
+    """Insert one workbook result and evict the oldest excess entry."""
+    cache.workbooks[key] = sheet_names
+    while len(cache.workbooks) > XLSX_WORKBOOK_CACHE_CAPACITY:
+        del cache.workbooks[next(iter(cache.workbooks))]
+
+
+def _remember_xlsx_sheet(
+    cache: _XlsxRerunCache,
+    key: _XlsxSheetCacheKey,
+    value: _CachedXlsxSheet,
+) -> None:
+    """Insert one sheet result and evict the oldest excess entry."""
+    cache.sheets[key] = value
+    while len(cache.sheets) > XLSX_SHEET_CACHE_CAPACITY:
+        del cache.sheets[next(iter(cache.sheets))]
+
+
+def _get_or_load_xlsx_sheet_names(
+    file_name: str,
+    content: bytes,
+    source_digest: str,
+) -> tuple[str, ...]:
+    """Reuse sheet names only after the real workbook checks have succeeded."""
+    cache = _xlsx_rerun_cache()
+    key = _XlsxWorkbookCacheKey(source_digest=source_digest, file_type="XLSX")
+    cached = cache.workbooks.get(key)
+    if cached is not None:
+        return cached
+
+    sheet_names = get_xlsx_sheet_names(file_name, content)
+    _remember_xlsx_workbook(cache, key, sheet_names)
+    return sheet_names
+
+
+def _get_or_load_xlsx_sheet(
+    file_name: str,
+    content: bytes,
+    source_digest: str,
+    selected_sheet: str,
+) -> _CachedXlsxSheet:
+    """Reuse a fully imported and detected sheet after success-only insertion."""
+    cache = _xlsx_rerun_cache()
+    key = _XlsxSheetCacheKey(
+        source_digest=source_digest,
+        file_type="XLSX",
+        file_name=file_name,
+        delimiter=None,
+        sheet_name=selected_sheet,
+        header_rule="first_row",
+        max_rows=MAX_ROWS_PER_FILE,
+        max_columns=MAX_COLUMNS_PER_FILE,
+    )
+    cached = cache.sheets.get(key)
+    if cached is not None:
+        return cached
+
+    imported_table = import_table(file_name, content, sheet_name=selected_sheet)
+    detection = detect_field_candidates(imported_table.dataframe)
+    loaded = _CachedXlsxSheet(imported_table=imported_table, detection=detection)
+    _remember_xlsx_sheet(cache, key, loaded)
+    return loaded
+
+
 def _render_general_file_import() -> None:
     """组织通用 CSV/XLSX 的读取、确认、验证和显式分析流程。"""
     st.info(
@@ -569,6 +689,7 @@ def _render_general_file_import() -> None:
 
     file_name, content = read_uploaded_bytes(uploaded_file)
     extension = Path(file_name).suffix.lower()
+    cached_detection: DetectionResult | None = None
 
     st.markdown("### 3. 文件解析设置")
     if extension == ".csv":
@@ -589,7 +710,8 @@ def _render_general_file_import() -> None:
             f"{CSV_DELIMITER_DISPLAY.get(result.delimiter or '', result.delimiter)}"
         )
     else:
-        sheet_names = get_xlsx_sheet_names(file_name, content)
+        source_digest = compute_source_sha256(content)
+        sheet_names = _get_or_load_xlsx_sheet_names(file_name, content, source_digest)
         if len(sheet_names) == 1:
             selected_sheet = sheet_names[0]
             st.write(f"**当前工作表：** {selected_sheet}（唯一工作表，已自动选择）")
@@ -605,12 +727,28 @@ def _render_general_file_import() -> None:
             if selected_sheet is None:
                 st.info("该 XLSX 包含多个工作表，请明确选择后再读取预览。")
                 return
-        result = import_table(file_name, content, sheet_name=selected_sheet)
+        cached_sheet = _get_or_load_xlsx_sheet(
+            file_name,
+            content,
+            source_digest,
+            selected_sheet,
+        )
+        result = cached_sheet.imported_table
+        cached_detection = cached_sheet.detection
 
-    _render_import_result(result, content)
+    _render_import_result(
+        result,
+        content,
+        detection=cached_detection,
+    )
 
 
-def _render_import_result(result: ImportedTable, content: bytes) -> None:
+def _render_import_result(
+    result: ImportedTable,
+    content: bytes,
+    *,
+    detection: DetectionResult | None = None,
+) -> None:
     """展示通用读取结果，不修改或删除任何数据。"""
     st.markdown("### 4. 文件基础信息")
     info_columns = st.columns(2)
@@ -646,8 +784,8 @@ def _render_import_result(result: ImportedTable, content: bytes) -> None:
     st.dataframe(result.dataframe.head(20), width="stretch")
     st.success("文件已成功读取；请继续核对字段建议并确认字段映射。")
 
-    detection = detect_field_candidates(result.dataframe)
-    _render_field_detection(detection)
+    resolved_detection = detection or detect_field_candidates(result.dataframe)
+    _render_field_detection(resolved_detection)
 
     source_key = build_mapping_source_key(
         content=content,
@@ -658,7 +796,7 @@ def _render_import_result(result: ImportedTable, content: bytes) -> None:
         header_rule="first_row",
         columns=result.column_names,
     )
-    _render_field_mapping(result, detection, source_key, content)
+    _render_field_mapping(result, resolved_detection, source_key, content)
 
     st.markdown("### 9. 流程边界")
     st.info(

@@ -6,11 +6,16 @@ from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from openpyxl import Workbook
 from streamlit.testing.v1 import AppTest
 
+import src.ui_single as ui_single
 from src.config import APP_NAME, APP_VERSION
+from src.field_detection import DetectionResult
+from src.file_import import FileImportError, ImportedTable
+from src.limits import UploadLimitError
 from src.ui_common import (
     PUBLIC_PRIVACY_NOTICE,
     RESEARCH_DISCLAIMER,
@@ -59,7 +64,7 @@ def _visible_text(app: AppTest) -> str:
     return "\n".join(values)
 
 
-def _multisheet_xlsx() -> bytes:
+def _multisheet_xlsx(*, strategy_return: float = 0.01) -> bytes:
     """在内存中生成用于 AppTest 的两工作表 XLSX。"""
     workbook = Workbook()
     first_sheet = workbook.active
@@ -68,7 +73,7 @@ def _multisheet_xlsx() -> bytes:
     first_sheet.append(["demo"])
     data_sheet = workbook.create_sheet("数据")
     data_sheet.append(["日期", "收益"])
-    data_sheet.append(["2026-01-01", 0.01])
+    data_sheet.append(["2026-01-01", strategy_return])
     output = BytesIO()
     workbook.save(output)
     return output.getvalue()
@@ -104,6 +109,53 @@ def _open_general_csv(content: str) -> AppTest:
         "text/csv",
     ).run()
     return app
+
+
+def _open_general_xlsx(content: bytes, *, file_name: str = "mapping.xlsx") -> AppTest:
+    app = _open_page(_load_app(), "单实验分析")
+    app.radio(key="single_data_mode").set_value("通用文件导入（CSV/XLSX）").run()
+    app.get("file_uploader")[0].upload(
+        file_name,
+        content,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ).run()
+    return app
+
+
+def _track_xlsx_expensive_calls(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    """Count the three expensive XLSX boundaries without changing their behavior."""
+    calls = {"sheet_names": 0, "import_table": 0, "detection": 0}
+    real_sheet_names = ui_single.get_xlsx_sheet_names
+    real_import_table = ui_single.import_table
+    real_detection = ui_single.detect_field_candidates
+
+    def counted_sheet_names(file_name: str, content: bytes) -> tuple[str, ...]:
+        calls["sheet_names"] += 1
+        return real_sheet_names(file_name, content)
+
+    def counted_import_table(
+        file_name: str,
+        content: bytes,
+        *,
+        delimiter: str | None = None,
+        sheet_name: str | None = None,
+    ) -> ImportedTable:
+        calls["import_table"] += 1
+        return real_import_table(
+            file_name,
+            content,
+            delimiter=delimiter,
+            sheet_name=sheet_name,
+        )
+
+    def counted_detection(dataframe: pd.DataFrame) -> DetectionResult:
+        calls["detection"] += 1
+        return real_detection(dataframe)
+
+    monkeypatch.setattr(ui_single, "get_xlsx_sheet_names", counted_sheet_names)
+    monkeypatch.setattr(ui_single, "import_table", counted_import_table)
+    monkeypatch.setattr(ui_single, "detect_field_candidates", counted_detection)
+    return calls
 
 
 def _mapping_basis_selectbox(app: AppTest):
@@ -835,6 +887,147 @@ def test_general_xlsx_upload_can_switch_selected_sheet() -> None:
     assert len(app.get("metric")) == 0
     assert len(app.get("plotly_chart")) == 0
     assert len(app.get("download_button")) == 0
+
+
+def test_xlsx_rerun_reuses_workbook_sheet_import_and_detection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _track_xlsx_expensive_calls(monkeypatch)
+    app = _open_general_xlsx(_multisheet_xlsx())
+
+    assert calls == {"sheet_names": 1, "import_table": 0, "detection": 0}
+
+    app.selectbox(key="general_xlsx_sheet").set_value("数据").run()
+    assert calls == {"sheet_names": 1, "import_table": 1, "detection": 1}
+
+    app.run()
+    assert calls == {"sheet_names": 1, "import_table": 1, "detection": 1}
+    assert "字段识别建议" in _visible_text(app)
+
+
+def test_xlsx_sheet_switch_reuses_workbook_and_previous_successful_sheet(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _track_xlsx_expensive_calls(monkeypatch)
+    app = _open_general_xlsx(_multisheet_xlsx())
+    app.selectbox(key="general_xlsx_sheet").set_value("数据").run()
+
+    app.selectbox(key="general_xlsx_sheet").set_value("说明").run()
+    assert calls == {"sheet_names": 1, "import_table": 2, "detection": 2}
+
+    app.selectbox(key="general_xlsx_sheet").set_value("数据").run()
+    assert calls == {"sheet_names": 1, "import_table": 2, "detection": 2}
+    assert "当前工作表：** 数据" in _visible_text(app)
+
+
+def test_same_xlsx_filename_with_different_bytes_misses_both_cache_levels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _track_xlsx_expensive_calls(monkeypatch)
+    app = _open_general_xlsx(_multisheet_xlsx(strategy_return=0.01))
+    app.selectbox(key="general_xlsx_sheet").set_value("数据").run()
+    assert calls == {"sheet_names": 1, "import_table": 1, "detection": 1}
+
+    app.get("file_uploader")[0].upload(
+        "mapping.xlsx",
+        _multisheet_xlsx(strategy_return=0.02),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ).run()
+    if app.selectbox(key="general_xlsx_sheet").value is None:
+        app.selectbox(key="general_xlsx_sheet").set_value("数据").run()
+
+    assert calls == {"sheet_names": 2, "import_table": 2, "detection": 2}
+
+
+def test_failed_xlsx_sheet_parse_is_not_cached(monkeypatch: pytest.MonkeyPatch) -> None:
+    real_import_table = ui_single.import_table
+    attempts = 0
+
+    def fail_once(
+        file_name: str,
+        content: bytes,
+        *,
+        delimiter: str | None = None,
+        sheet_name: str | None = None,
+    ) -> ImportedTable:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise FileImportError("测试解析失败")
+        return real_import_table(
+            file_name,
+            content,
+            delimiter=delimiter,
+            sheet_name=sheet_name,
+        )
+
+    monkeypatch.setattr(ui_single, "import_table", fail_once)
+    app = _open_general_xlsx(_multisheet_xlsx())
+    app.selectbox(key="general_xlsx_sheet").set_value("数据").run()
+    assert "测试解析失败" in _visible_text(app)
+
+    app.run()
+    assert attempts == 2
+    assert "字段识别建议" in _visible_text(app)
+
+
+def test_rejected_xlsx_workbook_is_not_cached(monkeypatch: pytest.MonkeyPatch) -> None:
+    real_sheet_names = ui_single.get_xlsx_sheet_names
+    attempts = 0
+
+    def reject_once(file_name: str, content: bytes) -> tuple[str, ...]:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise UploadLimitError("测试安全边界拒绝")
+        return real_sheet_names(file_name, content)
+
+    monkeypatch.setattr(ui_single, "get_xlsx_sheet_names", reject_once)
+    app = _open_general_xlsx(_multisheet_xlsx())
+    assert "测试安全边界拒绝" in _visible_text(app)
+
+    app.run()
+    assert attempts == 2
+    assert app.selectbox(key="general_xlsx_sheet").options == ["说明", "数据"]
+
+
+def test_xlsx_session_cache_capacity_uses_bounded_insertion_order() -> None:
+    cache = ui_single._XlsxRerunCache()
+    workbook_keys = [
+        ui_single._XlsxWorkbookCacheKey(
+            source_digest=f"sha256:{index:064x}",
+            file_type="XLSX",
+        )
+        for index in range(ui_single.XLSX_WORKBOOK_CACHE_CAPACITY + 1)
+    ]
+    for key in workbook_keys:
+        ui_single._remember_xlsx_workbook(cache, key, ("数据",))
+
+    assert len(cache.workbooks) == ui_single.XLSX_WORKBOOK_CACHE_CAPACITY
+    assert workbook_keys[0] not in cache.workbooks
+
+    content = _multisheet_xlsx()
+    imported_table = ui_single.import_table("mapping.xlsx", content, sheet_name="数据")
+    detection = ui_single.detect_field_candidates(imported_table.dataframe)
+    cached_sheet = ui_single._CachedXlsxSheet(imported_table, detection)
+    sheet_keys = [
+        ui_single._XlsxSheetCacheKey(
+            source_digest=f"sha256:{index:064x}",
+            file_type="XLSX",
+            file_name="mapping.xlsx",
+            delimiter=None,
+            sheet_name=f"数据{index}",
+            header_rule="first_row",
+            max_rows=ui_single.MAX_ROWS_PER_FILE,
+            max_columns=ui_single.MAX_COLUMNS_PER_FILE,
+        )
+        for index in range(ui_single.XLSX_SHEET_CACHE_CAPACITY + 1)
+    ]
+    for key in sheet_keys:
+        ui_single._remember_xlsx_sheet(cache, key, cached_sheet)
+
+    assert len(cache.sheets) == ui_single.XLSX_SHEET_CACHE_CAPACITY
+    assert sheet_keys[0] not in cache.sheets
 
 
 def test_existing_strict_protocol_upload_path_remains_available() -> None:
