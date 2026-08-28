@@ -4,16 +4,27 @@ from __future__ import annotations
 
 import csv
 from collections import Counter
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, datetime
 from io import BytesIO, StringIO
 from numbers import Number
 from pathlib import PureWindowsPath
-from typing import BinaryIO
+from typing import BinaryIO, Protocol, runtime_checkable
+from zipfile import BadZipFile, LargeZipFile, ZipFile
 
 import pandas as pd
 
-from src.config import MAX_COLUMNS_PER_FILE, MAX_ROWS_PER_FILE, SINGLE_FILE_MAX_MB
+from src.config import (
+    MAX_COLUMNS_PER_FILE,
+    MAX_ROWS_PER_FILE,
+    MAX_XLSX_ARCHIVE_MEMBERS,
+    MAX_XLSX_COMPRESSION_RATIO,
+    MAX_XLSX_MEMBER_UNCOMPRESSED_BYTES,
+    MAX_XLSX_SHEETS,
+    MAX_XLSX_TOTAL_UNCOMPRESSED_BYTES,
+    SINGLE_FILE_MAX_MB,
+)
 from src.limits import (
     UploadLimitError,
     get_source_filename,
@@ -44,6 +55,22 @@ CSV_ENCODING_ERROR = (
 
 class FileImportError(ValueError):
     """表示用户可通过修正文件或解析设置解决的导入问题。"""
+
+
+@runtime_checkable
+class _ReadOnlyWorksheet(Protocol):
+    """Selected openpyxl worksheet operations used by the bounded scan."""
+
+    def reset_dimensions(self) -> None: ...
+
+    def iter_rows(self, *, values_only: bool = False) -> Iterator[tuple[object, ...]]: ...
+
+
+@runtime_checkable
+class _ReadOnlyWorkbook(Protocol):
+    """Minimal workbook lookup boundary exposed by pandas ExcelFile."""
+
+    def __getitem__(self, key: str) -> object: ...
 
 
 @dataclass
@@ -97,18 +124,72 @@ def read_uploaded_bytes(source: BinaryIO) -> tuple[str, bytes]:
 def get_xlsx_sheet_names(file_name: str, content: bytes) -> tuple[str, ...]:
     """安全取得 XLSX 工作表名称，不执行宏或加载外部链接。"""
     safe_name = _prepare_content(file_name, content, expected_extension=".xlsx")
+    _preflight_xlsx_archive(safe_name, content)
     try:
         with pd.ExcelFile(BytesIO(content), engine="openpyxl") as workbook:
-            sheet_names = tuple(str(name) for name in workbook.sheet_names)
+            sheet_names = _validated_xlsx_sheet_names(safe_name, workbook)
     except ImportError as exc:
         raise FileImportError(
             "缺少Excel读取依赖openpyxl，请安装项目requirements.txt后重试。"
         ) from exc
+    except FileImportError, UploadLimitError:
+        raise
     except Exception as exc:
         raise FileImportError(f"{safe_name}：XLSX文件无法读取，请确认文件有效且未损坏。") from exc
+    return sheet_names
 
+
+def _preflight_xlsx_archive(file_name: str, content: bytes) -> None:
+    """在 workbook parser 前验证 XLSX ZIP 元数据和固定资源边界。"""
+    try:
+        with ZipFile(BytesIO(content), mode="r") as archive:
+            entries = archive.infolist()
+    except (BadZipFile, LargeZipFile, OSError, ValueError) as exc:
+        raise FileImportError(f"{file_name}：XLSX文件无法读取，请确认文件有效且未损坏。") from exc
+
+    if len(entries) > MAX_XLSX_ARCHIVE_MEMBERS:
+        raise UploadLimitError(
+            f"{file_name}：XLSX归档成员数为 {len(entries)}，"
+            f"超过允许上限 {MAX_XLSX_ARCHIVE_MEMBERS}。"
+        )
+
+    total_uncompressed_bytes = 0
+    for entry in entries:
+        if entry.file_size > MAX_XLSX_MEMBER_UNCOMPRESSED_BYTES:
+            raise UploadLimitError(
+                f"{file_name}：XLSX单个归档成员解压后大小超过允许上限 "
+                f"{MAX_XLSX_MEMBER_UNCOMPRESSED_BYTES} bytes。"
+            )
+        total_uncompressed_bytes += entry.file_size
+        if total_uncompressed_bytes > MAX_XLSX_TOTAL_UNCOMPRESSED_BYTES:
+            raise UploadLimitError(
+                f"{file_name}：XLSX归档解压后总大小超过允许上限 "
+                f"{MAX_XLSX_TOTAL_UNCOMPRESSED_BYTES} bytes。"
+            )
+        if entry.file_size == 0:
+            continue
+        if entry.compress_size == 0:
+            raise UploadLimitError(f"{file_name}：XLSX归档包含无法接受的零压缩大小成员。")
+        compression_ratio = entry.file_size / entry.compress_size
+        if compression_ratio > MAX_XLSX_COMPRESSION_RATIO:
+            raise UploadLimitError(
+                f"{file_name}：XLSX归档成员压缩比 {compression_ratio:.2f}:1，"
+                f"超过允许上限 {MAX_XLSX_COMPRESSION_RATIO:.1f}:1。"
+            )
+
+
+def _validated_xlsx_sheet_names(
+    file_name: str,
+    workbook: pd.ExcelFile,
+) -> tuple[str, ...]:
+    """验证工作表存在且数量处于固定上限内。"""
+    sheet_names = tuple(str(name) for name in workbook.sheet_names)
     if not sheet_names:
-        raise FileImportError(f"{safe_name}：XLSX文件没有可读取的工作表。")
+        raise FileImportError(f"{file_name}：XLSX文件没有可读取的工作表。")
+    if len(sheet_names) > MAX_XLSX_SHEETS:
+        raise UploadLimitError(
+            f"{file_name}：XLSX工作表数量为 {len(sheet_names)}，超过允许上限 {MAX_XLSX_SHEETS}。"
+        )
     return sheet_names
 
 
@@ -235,33 +316,36 @@ def _import_xlsx(
     sheet_name: str | None,
 ) -> ImportedTable:
     """读取用户明确选择的 XLSX 工作表。"""
-    sheet_names = get_xlsx_sheet_names(file_name, content)
-    if sheet_name is None:
-        if len(sheet_names) > 1:
-            raise FileImportError("XLSX包含多个工作表，请先明确选择一个工作表。")
-        selected_sheet = sheet_names[0]
-    else:
-        selected_sheet = sheet_name
-        if selected_sheet not in sheet_names:
-            raise FileImportError(f"XLSX中不存在工作表：{selected_sheet}。")
-
+    _preflight_xlsx_archive(file_name, content)
+    selected_sheet = sheet_name or "未选择"
     try:
-        raw_header = pd.read_excel(
-            BytesIO(content),
-            sheet_name=selected_sheet,
-            header=None,
-            nrows=1,
-            engine="openpyxl",
-        )
-        data = pd.read_excel(
-            BytesIO(content),
-            sheet_name=selected_sheet,
-            engine="openpyxl",
-        )
+        with pd.ExcelFile(BytesIO(content), engine="openpyxl") as workbook:
+            sheet_names = _validated_xlsx_sheet_names(file_name, workbook)
+            if sheet_name is None:
+                if len(sheet_names) > 1:
+                    raise FileImportError("XLSX包含多个工作表，请先明确选择一个工作表。")
+                selected_sheet = sheet_names[0]
+            else:
+                selected_sheet = sheet_name
+                if selected_sheet not in sheet_names:
+                    raise FileImportError(f"XLSX中不存在工作表：{selected_sheet}。")
+
+            _validate_xlsx_sheet_columns(file_name, workbook, selected_sheet)
+            raw_header = workbook.parse(
+                sheet_name=selected_sheet,
+                header=None,
+                nrows=1,
+            )
+            data = workbook.parse(
+                sheet_name=selected_sheet,
+                nrows=MAX_ROWS_PER_FILE + 1,
+            )
     except ImportError as exc:
         raise FileImportError(
             "缺少Excel读取依赖openpyxl，请安装项目requirements.txt后重试。"
         ) from exc
+    except FileImportError, UploadLimitError:
+        raise
     except Exception as exc:
         raise FileImportError(
             f"{file_name}：工作表“{selected_sheet}”无法读取，请确认XLSX文件有效且未损坏。"
@@ -282,6 +366,31 @@ def _import_xlsx(
         sheet_name=selected_sheet,
         sheet_count=len(sheet_names),
     )
+
+
+def _validate_xlsx_sheet_columns(
+    file_name: str,
+    workbook: pd.ExcelFile,
+    selected_sheet: str,
+) -> None:
+    """逐行扫描有限范围，在 DataFrame materialization 前阻断超宽工作表。"""
+    book: object = workbook.book
+    if not isinstance(book, _ReadOnlyWorkbook):
+        raise FileImportError(f"{file_name}：XLSX工作簿读取接口不受支持。")
+    worksheet = book[selected_sheet]
+    if not isinstance(worksheet, _ReadOnlyWorksheet):
+        raise FileImportError(f"{file_name}：XLSX工作表读取接口不受支持。")
+
+    worksheet.reset_dimensions()
+    max_observed_rows = MAX_ROWS_PER_FILE + 1
+    for row_number, row in enumerate(worksheet.iter_rows(values_only=True), start=1):
+        if len(row) > MAX_COLUMNS_PER_FILE:
+            raise UploadLimitError(
+                f"{file_name}：工作表“{selected_sheet}”第 {row_number} 行包含 {len(row)} 列，"
+                f"超过允许上限 {MAX_COLUMNS_PER_FILE} 列。"
+            )
+        if row_number >= max_observed_rows:
+            break
 
 
 def _build_result(

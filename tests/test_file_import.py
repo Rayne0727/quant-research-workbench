@@ -3,6 +3,7 @@
 import csv
 from io import BytesIO
 from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 import pytest
 from openpyxl import Workbook
@@ -11,6 +12,7 @@ from src.config import SINGLE_FILE_MAX_MB
 from src.file_import import (
     CSV_ENCODING_ERROR,
     FileImportError,
+    _preflight_xlsx_archive,
     _select_delimiter,
     get_xlsx_sheet_names,
     import_table,
@@ -37,6 +39,19 @@ def _xlsx_bytes(
 
     output = BytesIO()
     workbook.save(output)
+    return output.getvalue()
+
+
+def _zip_bytes(
+    entries: dict[str, bytes],
+    *,
+    compression: int = ZIP_STORED,
+) -> bytes:
+    """生成只用于 archive preflight 的小型内存 ZIP。"""
+    output = BytesIO()
+    with ZipFile(output, mode="w", compression=compression) as archive:
+        for name, content in entries.items():
+            archive.writestr(name, content)
     return output.getvalue()
 
 
@@ -215,6 +230,90 @@ def test_corrupt_xlsx_fails_with_controlled_error() -> None:
         import_table("broken.xlsx", b"not an xlsx workbook")
 
 
+def test_xlsx_archive_member_limit_fails_with_small_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.file_import.MAX_XLSX_ARCHIVE_MEMBERS", 1)
+    content = _zip_bytes({"first.xml": b"1", "second.xml": b"2"})
+
+    with pytest.raises(UploadLimitError, match="归档成员数"):
+        _preflight_xlsx_archive("many-members.xlsx", content)
+
+
+def test_xlsx_total_uncompressed_limit_fails_with_small_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.file_import.MAX_XLSX_TOTAL_UNCOMPRESSED_BYTES", 3)
+    content = _zip_bytes({"first.xml": b"12", "second.xml": b"34"})
+
+    with pytest.raises(UploadLimitError, match="解压后总大小"):
+        _preflight_xlsx_archive("large-total.xlsx", content)
+
+
+def test_xlsx_single_member_limit_fails_with_small_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.file_import.MAX_XLSX_MEMBER_UNCOMPRESSED_BYTES", 3)
+    content = _zip_bytes({"large.xml": b"1234"})
+
+    with pytest.raises(UploadLimitError, match="单个归档成员"):
+        _preflight_xlsx_archive("large-member.xlsx", content)
+
+
+def test_xlsx_compression_ratio_limit_fails_with_small_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.file_import.MAX_XLSX_COMPRESSION_RATIO", 2.0)
+    content = _zip_bytes({"repeated.xml": b"a" * 1_000}, compression=ZIP_DEFLATED)
+
+    with pytest.raises(UploadLimitError, match="压缩比"):
+        _preflight_xlsx_archive("high-ratio.xlsx", content)
+
+
+def test_xlsx_zero_byte_member_does_not_trigger_ratio_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.file_import.MAX_XLSX_COMPRESSION_RATIO", 0.1)
+    content = _zip_bytes({"empty.xml": b""})
+
+    _preflight_xlsx_archive("empty-member.xlsx", content)
+
+
+def test_xlsx_sheet_count_limit_fails_with_small_workbook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.file_import.MAX_XLSX_SHEETS", 1)
+    content = _xlsx_bytes({"first": [["value"], [1]], "second": [["value"], [2]]})
+
+    with pytest.raises(UploadLimitError, match="工作表数量"):
+        get_xlsx_sheet_names("many-sheets.xlsx", content)
+
+
+def test_xlsx_row_limit_rejects_without_reading_unbounded_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.file_import.MAX_ROWS_PER_FILE", 1)
+    content = _xlsx_bytes({"data": [["value"], [1], [2], [3]]})
+
+    with pytest.raises(UploadLimitError, match=r"数据行数为 2.*允许上限 1 行"):
+        import_table("many-rows.xlsx", content)
+
+
+def test_xlsx_column_limit_rejects_before_dataframe_parse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.file_import.MAX_COLUMNS_PER_FILE", 2)
+    content = _xlsx_bytes({"data": [["first", "second", "third"], [1, 2, 3]]})
+
+    def fail_parse(*args: object, **kwargs: object) -> None:
+        raise AssertionError("超宽工作表不应进入 DataFrame parse")
+
+    monkeypatch.setattr("src.file_import.pd.ExcelFile.parse", fail_parse)
+
+    with pytest.raises(UploadLimitError, match=r"第 1 行包含 3 列.*允许上限 2 列"):
+        import_table("many-columns.xlsx", content)
+
+
 def test_xlsx_without_sheet_names_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -232,8 +331,10 @@ def test_xlsx_without_sheet_names_fails(
         lambda *args, **kwargs: _WorkbookWithoutSheets(),
     )
 
+    content = _xlsx_bytes({"data": [["value"], [1]]})
+
     with pytest.raises(FileImportError, match="没有可读取的工作表"):
-        get_xlsx_sheet_names("table.xlsx", b"placeholder")
+        get_xlsx_sheet_names("table.xlsx", content)
 
 
 def test_missing_openpyxl_dependency_uses_controlled_error(
@@ -244,8 +345,10 @@ def test_missing_openpyxl_dependency_uses_controlled_error(
 
     monkeypatch.setattr("src.file_import.pd.ExcelFile", _raise_import_error)
 
+    content = _xlsx_bytes({"data": [["value"], [1]]})
+
     with pytest.raises(FileImportError, match="缺少Excel读取依赖openpyxl"):
-        get_xlsx_sheet_names("table.xlsx", b"placeholder")
+        get_xlsx_sheet_names("table.xlsx", content)
 
 
 def test_file_size_limit_is_checked_before_upload_read() -> None:

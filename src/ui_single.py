@@ -91,6 +91,9 @@ UNEXPECTED_ERROR_MESSAGE = (
     "应用处理过程中出现未预期错误。请检查文件格式；"
     "若问题持续存在，请重新启动应用并保留错误发生步骤。"
 )
+EXPORT_PRIVACY_NOTICE = (
+    "运行清单和研究包可能包含文件名、来源指纹、研究备注和标准化数据；分享前请确认内容适合披露。"
+)
 FIELD_SUGGESTION_NOTICE = (
     "字段识别结果仅为确定性规则生成的建议。系统尚未建立字段映射，也不会使用当前文件计算绩效。"
 )
@@ -495,6 +498,7 @@ def _render_completed_analysis(
 
     st.markdown(f"### {export_section}. 结果导出")
     st.caption("下载内容在内存中生成，不会由应用主动写入 data 目录。")
+    st.warning(EXPORT_PRIVACY_NOTICE)
     download_columns = st.columns(4)
     download_columns[0].download_button(
         "下载分析报告",

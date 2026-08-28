@@ -16,7 +16,14 @@ from src.config import (
     COMPARISON_FILE_MAX_MB,
     MAX_COLUMNS_PER_FILE,
     MAX_COMPARISON_FILES,
+    MAX_COMPARISON_TOTAL_ROWS,
+    MAX_COMPARISON_TOTAL_UPLOAD_BYTES,
     MAX_ROWS_PER_FILE,
+    MAX_XLSX_ARCHIVE_MEMBERS,
+    MAX_XLSX_COMPRESSION_RATIO,
+    MAX_XLSX_MEMBER_UNCOMPRESSED_BYTES,
+    MAX_XLSX_SHEETS,
+    MAX_XLSX_TOTAL_UNCOMPRESSED_BYTES,
     SINGLE_FILE_MAX_MB,
 )
 from src.data_loader import load_returns_csv
@@ -75,6 +82,46 @@ def test_public_release_config_values_are_valid() -> None:
     assert isinstance(MAX_ROWS_PER_FILE, int) and MAX_ROWS_PER_FILE > 0
     assert MAX_COLUMNS_PER_FILE == 500
     assert MAX_COMPARISON_FILES == 6
+    assert MAX_XLSX_ARCHIVE_MEMBERS == 2_000
+    assert MAX_XLSX_TOTAL_UNCOMPRESSED_BYTES == 100 * 1024 * 1024
+    assert MAX_XLSX_MEMBER_UNCOMPRESSED_BYTES == 50 * 1024 * 1024
+    assert MAX_XLSX_COMPRESSION_RATIO == 100.0
+    assert MAX_XLSX_SHEETS == 50
+    assert MAX_COMPARISON_TOTAL_UPLOAD_BYTES == 60 * 1024 * 1024
+    assert MAX_COMPARISON_TOTAL_ROWS == 600_000
+
+
+def test_ci_security_gates_and_local_exclusions_are_frozen() -> None:
+    ci_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    dev_requirements = Path("requirements-dev.txt").read_text(encoding="utf-8")
+    runtime_requirements = Path("requirements.txt").read_text(encoding="utf-8")
+    quality_script = Path("scripts/check_quality.bat").read_text(encoding="utf-8")
+    release_script = Path("scripts/check_release.bat").read_text(encoding="utf-8")
+
+    assert "permissions:\n  contents: read" in ci_text
+    assert "persist-credentials: false" in ci_text
+    assert "python -m pip_audit -r requirements.txt" in ci_text
+    assert "--fix" not in ci_text
+    assert "pip-audit==2.10.1" in dev_requirements
+    assert "pip-audit" not in runtime_requirements
+    assert "pip_audit" not in runtime_requirements
+    assert "pip-audit" not in quality_script
+    assert "pip_audit" not in quality_script
+    assert "pip-audit" not in release_script
+    assert "pip_audit" not in release_script
+
+
+def test_dependabot_only_checks_approved_ecosystems_weekly() -> None:
+    dependabot_text = Path(".github/dependabot.yml").read_text(encoding="utf-8")
+
+    assert dependabot_text.count('directory: "/"') == 2
+    assert dependabot_text.count('interval: "weekly"') == 2
+    assert dependabot_text.count("open-pull-requests-limit: 5") == 2
+    assert 'package-ecosystem: "pip"' in dependabot_text
+    assert 'package-ecosystem: "github-actions"' in dependabot_text
+    assert "automerged" not in dependabot_text.lower()
+    assert "registries" not in dependabot_text.lower()
+    assert "secrets" not in dependabot_text.lower()
 
 
 def test_v040_release_documents_are_present_and_current() -> None:

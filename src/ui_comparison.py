@@ -18,9 +18,11 @@ from src.comparison import (
 from src.config import (
     COMPARISON_FILE_MAX_MB,
     MAX_COMPARISON_FILES,
+    MAX_COMPARISON_TOTAL_ROWS,
+    MAX_COMPARISON_TOTAL_UPLOAD_BYTES,
     MAX_ROWS_PER_FILE,
 )
-from src.limits import UploadLimitError
+from src.limits import BYTES_PER_MB, UploadLimitError
 from src.reporting import (
     ComparisonReportContext,
     generate_comparison_markdown_report,
@@ -66,7 +68,9 @@ def _render_comparison_page() -> None:
     )
     st.caption(
         f"上传限制：2 至 {MAX_COMPARISON_FILES} 份文件，每份最大 "
-        f"{COMPARISON_FILE_MAX_MB} MB、最多 {MAX_ROWS_PER_FILE} 行。"
+        f"{COMPARISON_FILE_MAX_MB} MB、最多 {MAX_ROWS_PER_FILE} 行；"
+        f"总计最大 {MAX_COMPARISON_TOTAL_UPLOAD_BYTES // BYTES_PER_MB} MB、"
+        f"最多 {MAX_COMPARISON_TOTAL_ROWS} 行。"
     )
     st.markdown(
         "必需字段：`date`、`strategy_return`、`strategy_nav`、`drawdown`；  "

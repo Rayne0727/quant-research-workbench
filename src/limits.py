@@ -21,7 +21,7 @@ def get_source_filename(source: object, fallback: str = "上传文件.csv") -> s
 
 def validate_file_size(source: object, filename: str, max_mb: int) -> None:
     """在读取 CSV 前检查可确定的文件字节数。"""
-    size_bytes = _get_size_bytes(source)
+    size_bytes = get_size_bytes(source)
     if size_bytes is None:
         return
     max_bytes = max_mb * BYTES_PER_MB
@@ -43,7 +43,7 @@ def validate_row_count(
         raise UploadLimitError(f"{filename}：数据行数为 {row_count}，超过允许上限 {max_rows} 行。")
 
 
-def _get_size_bytes(source: object) -> int | None:
+def get_size_bytes(source: object) -> int | None:
     """在不消费文件内容的前提下取得大小，无法确定时返回 None。"""
     if isinstance(source, (str, Path)):
         try:

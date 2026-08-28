@@ -76,6 +76,79 @@ def test_two_valid_standardized_csv_files_can_be_compared() -> None:
     assert len(result.experiments) == 2
 
 
+def test_comparison_total_byte_limit_allows_exact_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    csv_one = _standardized_data().to_csv(index=False)
+    csv_two = _standardized_data(returns=[0.005, 0.001, -0.002]).to_csv(index=False)
+    total_bytes = len(csv_one.encode("utf-8")) + len(csv_two.encode("utf-8"))
+    monkeypatch.setattr("src.comparison.MAX_COMPARISON_TOTAL_UPLOAD_BYTES", total_bytes)
+
+    result = load_and_compare_standardized_files(
+        [
+            ("one_standardized_data.csv", StringIO(csv_one)),
+            ("two_standardized_data.csv", StringIO(csv_two)),
+        ]
+    )
+
+    assert len(result.experiments) == 2
+
+
+def test_comparison_total_byte_limit_blocks_before_csv_parse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.comparison.MAX_COMPARISON_TOTAL_UPLOAD_BYTES", 1)
+
+    def fail_read_csv(*args: object, **kwargs: object) -> None:
+        raise AssertionError("总字节数超限时不应解析 CSV")
+
+    monkeypatch.setattr("src.comparison.pd.read_csv", fail_read_csv)
+
+    with pytest.raises(ComparisonValidationError, match="上传文件总大小"):
+        load_and_compare_standardized_files(
+            [("one.csv", StringIO("a\n1\n")), ("two.csv", StringIO("a\n2\n"))]
+        )
+
+
+def test_comparison_total_row_limit_allows_exact_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.comparison.MAX_COMPARISON_TOTAL_ROWS", 8)
+    csv_text = _standardized_data().to_csv(index=False)
+
+    result = load_and_compare_standardized_files(
+        [("one.csv", StringIO(csv_text)), ("two.csv", StringIO(csv_text))]
+    )
+
+    assert sum(len(experiment.data) for experiment in result.experiments) == 8
+
+
+def test_comparison_total_row_limit_stops_before_later_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.comparison.MAX_COMPARISON_TOTAL_ROWS", 4)
+    csv_text = _standardized_data().to_csv(index=False)
+    original_read_csv = pd.read_csv
+    parsed_sources: list[object] = []
+
+    def record_read_csv(source: object, *args: object, **kwargs: object) -> pd.DataFrame:
+        parsed_sources.append(source)
+        return original_read_csv(source, *args, **kwargs)
+
+    monkeypatch.setattr("src.comparison.pd.read_csv", record_read_csv)
+
+    with pytest.raises(ComparisonValidationError, match=r"累计数据行数为 8.*上限 4"):
+        load_and_compare_standardized_files(
+            [
+                ("one.csv", StringIO(csv_text)),
+                ("two.csv", StringIO(csv_text)),
+                ("three.csv", StringIO(csv_text)),
+            ]
+        )
+
+    assert len(parsed_sources) == 2
+
+
 def test_six_valid_files_can_be_compared() -> None:
     assert len(compare_standardized_datasets(_datasets(6)).experiments) == 6
 
@@ -447,6 +520,35 @@ def test_aligned_nav_csv_contains_date_and_all_experiments() -> None:
     exported = pd.read_csv(BytesIO(generate_aligned_nav_csv(result)))
 
     assert list(exported.columns) == ["date", "experiment_0", "experiment_1"]
+
+
+@pytest.mark.parametrize("prefix", ("=", "+", "-", "@"))
+def test_comparison_csv_exports_neutralize_formula_prefixes_only_at_boundary(
+    prefix: str,
+) -> None:
+    dangerous_name = f"{prefix}formula"
+    result = compare_standardized_datasets(
+        [
+            (f"{dangerous_name}_standardized_data.csv", _standardized_data()),
+            ("normal_standardized_data.csv", _standardized_data()),
+        ]
+    )
+    original_metrics = result.metrics_table.copy(deep=True)
+    original_aligned = result.aligned_nav_table.copy(deep=True)
+
+    metrics_export = pd.read_csv(BytesIO(generate_comparison_metrics_csv(result)))
+    aligned_export = pd.read_csv(BytesIO(generate_aligned_nav_csv(result)))
+
+    assert result.experiments[0].name == dangerous_name
+    assert result.metrics_table.loc[0, "experiment_name"] == dangerous_name
+    assert dangerous_name in result.aligned_nav_table.columns
+    assert metrics_export.loc[0, "experiment_name"] == f"'{dangerous_name}"
+    assert metrics_export.loc[1, "experiment_name"] == "normal"
+    assert list(aligned_export.columns) == ["date", f"'{dangerous_name}", "normal"]
+    assert pd.api.types.is_numeric_dtype(metrics_export["cumulative_return"])
+    assert pd.api.types.is_numeric_dtype(aligned_export[f"'{dangerous_name}"])
+    pd.testing.assert_frame_equal(result.metrics_table, original_metrics)
+    pd.testing.assert_frame_equal(result.aligned_nav_table, original_aligned)
 
 
 def test_validation_error_contains_filename() -> None:

@@ -13,9 +13,11 @@ import pandas as pd
 from src.config import (
     COMPARISON_FILE_MAX_MB,
     MAX_COMPARISON_FILES,
+    MAX_COMPARISON_TOTAL_ROWS,
+    MAX_COMPARISON_TOTAL_UPLOAD_BYTES,
     MAX_ROWS_PER_FILE,
 )
-from src.limits import validate_file_size, validate_row_count
+from src.limits import BYTES_PER_MB, get_size_bytes, validate_file_size, validate_row_count
 from src.performance import (
     add_nav_performance_series,
     calculate_nav_performance_metrics,
@@ -75,10 +77,10 @@ def load_and_compare_standardized_files(
 ) -> ComparisonResult:
     """读取多份命名 CSV，并在全部合法后执行比较。"""
     _validate_file_count(len(files))
-    for filename, source in files:
-        validate_file_size(source, filename, COMPARISON_FILE_MAX_MB)
+    _validate_comparison_upload_sizes(files)
 
     datasets: list[tuple[str, pd.DataFrame]] = []
+    total_rows = 0
     for filename, source in files:
         try:
             if hasattr(source, "seek"):
@@ -99,8 +101,34 @@ def load_and_compare_standardized_files(
                 f"{filename}：文件读取失败，请确认文件有效且未损坏。"
             ) from exc
         validate_row_count(raw_data, filename, MAX_ROWS_PER_FILE)
+        total_rows += len(raw_data)
+        if total_rows > MAX_COMPARISON_TOTAL_ROWS:
+            raise ComparisonValidationError(
+                f"多实验比较累计数据行数为 {total_rows}，"
+                f"超过允许上限 {MAX_COMPARISON_TOTAL_ROWS} 行。"
+            )
         datasets.append((filename, raw_data))
     return compare_standardized_datasets(datasets)
+
+
+def _validate_comparison_upload_sizes(
+    files: Sequence[tuple[str, CsvSource]],
+) -> None:
+    """在读取任一 CSV 前绑定逐文件及多文件总上传字节数。"""
+    total_bytes = 0
+    for filename, source in files:
+        validate_file_size(source, filename, COMPARISON_FILE_MAX_MB)
+        size_bytes = get_size_bytes(source)
+        if size_bytes is None:
+            raise ComparisonValidationError(f"{filename}：无法在读取前确定文件大小。")
+        total_bytes += size_bytes
+
+    if total_bytes > MAX_COMPARISON_TOTAL_UPLOAD_BYTES:
+        actual_mb = total_bytes / BYTES_PER_MB
+        limit_mb = MAX_COMPARISON_TOTAL_UPLOAD_BYTES / BYTES_PER_MB
+        raise ComparisonValidationError(
+            f"多实验比较上传文件总大小为 {actual_mb:.2f} MB，超过允许上限 {limit_mb:.0f} MB。"
+        )
 
 
 def compare_standardized_datasets(
@@ -296,6 +324,9 @@ def validate_standardized_data(
 def generate_comparison_metrics_csv(result: ComparisonResult) -> bytes:
     """在内存中导出保留原始数值的比较指标 CSV。"""
     export_data = result.metrics_table.copy(deep=True)
+    export_data["experiment_name"] = [
+        _spreadsheet_safe_text(str(value)) for value in export_data["experiment_name"].tolist()
+    ]
     for column in ("common_start_date", "common_end_date"):
         export_data[column] = pd.to_datetime(export_data[column]).dt.strftime("%Y-%m-%d")
     return export_data.to_csv(index=False).encode("utf-8-sig")
@@ -305,7 +336,16 @@ def generate_aligned_nav_csv(result: ComparisonResult) -> bytes:
     """在内存中导出共同日期对齐的净值宽表 CSV。"""
     export_data = result.aligned_nav_table.copy(deep=True)
     export_data["date"] = pd.to_datetime(export_data["date"]).dt.strftime("%Y-%m-%d")
+    export_data.columns = [
+        str(column) if column == "date" else _spreadsheet_safe_text(str(column))
+        for column in export_data.columns
+    ]
     return export_data.to_csv(index=False).encode("utf-8-sig")
+
+
+def _spreadsheet_safe_text(value: str) -> str:
+    """只在 CSV 表示层中 neutralize spreadsheet formula 前缀。"""
+    return f"'{value}" if value.startswith(("=", "+", "-", "@")) else value
 
 
 def _validate_file_count(file_count: int) -> None:
