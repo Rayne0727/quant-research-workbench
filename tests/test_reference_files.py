@@ -15,6 +15,7 @@ from openpyxl import Workbook
 
 import src.reference_files as reference_files
 from src import ui_reference_files
+from src.adapters import load_weekly_nav_csv
 from src.reference_files import (
     ALLOWED_FILE_TYPES,
     DOCUMENTED_SUPPORT_FILES,
@@ -286,6 +287,18 @@ def test_multisheet_xlsx_and_expected_outcomes_exist() -> None:
     assert xlsx.filename == "11_multi_sheet_online_regression.xlsx"
     assert resolve_reference_file(xlsx.relative_path).suffix == ".xlsx"
     assert resolve_reference_file("expected_outcomes.csv").is_file()
+
+
+def test_standard_weekly_nav_reference_passes_direct_protocol() -> None:
+    catalog = load_reference_catalog()
+    entry = next(item for item in catalog.files if item.id == "standard_weekly_nav")
+
+    result = load_weekly_nav_csv(resolve_reference_file(entry.relative_path))
+
+    assert entry.filename == "12_standard_weekly_nav.csv"
+    assert len(result.data) == 40
+    assert result.data["strategy_nav"].iloc[0] == pytest.approx(1.0)
+    assert result.data["strategy_return"].iloc[1:].notna().all()
 
 
 def test_manifest_loading_is_deterministic_and_repeatable() -> None:

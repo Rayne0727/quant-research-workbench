@@ -1,6 +1,6 @@
 # Quant Research Workbench 数据协议
 
-本文档对应 `v0.4.0`。标准协议字段名区分大小写；通用导入可以生成候选建议并由用户显式确认字段映射，但系统不会自动确认、重命名或修改字段。
+本文档对应 `v1.0.0`。标准协议字段名区分大小写；通用导入可以生成候选建议并由用户显式确认字段映射，但系统不会自动确认、重命名或修改字段。
 
 ## 1. 通用文件读取边界
 
@@ -149,11 +149,10 @@ comparison_drawdown = comparison_nav / comparison_nav.cummax() - 1
 
 XLSX 在 openpyxl/pandas 解析前检查 ZIP 元数据，不把归档解压到磁盘；选定工作表采用有界读取，并在发现超宽行时立即停止。多实验比较在解析任一 CSV 前累计全部上传字节数，随后按已解析文件累计实际行数；超限后不继续读取后续实验。任一限制超出时，系统显示面向用户的错误并停止本次处理。
 
-## 10. B.1a 可复现运行身份核心
+## 10. 可复现运行身份
 
-B.1a 在内部库中定义当前生成协议 `qrw-run-manifest-v2` 单实验清单模型。该阶段只提供不可变模型、
-确定性身份与 JSON 序列化能力，尚未接入 Streamlit 页面或下载按钮；用户可下载的 Manifest
-属于 B.1b，研究包与多实验 Manifest 也不在本阶段范围内。
+当前单实验清单使用 `qrw-run-manifest-v2`。不可变模型、确定性身份与 JSON 序列化通过统一集成层
+接入四条单实验路径；多实验比较不生成 Manifest。
 
 `qrw-run-manifest-v1` 是内部预发布协议；由于它没有明确绑定通用 NAV 的 adapter version 和
 return tolerance，已在首个面向用户的 Manifest 发布前由 v2 取代。
@@ -192,13 +191,13 @@ workflow traceability metadata 保存，不参与两个新身份。应用版本�
 `ensure_ascii=False`、`allow_nan=False`，且不附加末尾换行。确定性文件名为
 `qrw_run_<run_id 前 16 位十六进制>.json`。
 
-## 11. B.1b Run Manifest 用户集成
+## 11. Run Manifest 用户集成
 
 Direct Standard Return、Direct NAV、Generic Return 和 Generic NAV 四条单实验路径在分析成功后均提供“下载运行清单 JSON”。清单必须使用同一次实际进入绩效计算的权威分析 DataFrame 与当前调用链中的原始来源字节生成，不重新读取导出文件，也不重新执行映射、标准化或 NAV adapter。
 
 页面通过统一集成层调用 core serializer 和 filename builder；JSON MIME 为 `application/json`。同一分析在无真实输入变化的 rerun 中复用缓存清单和 `generated_at_utc`。来源、映射、工作表、标准化或协议请求变化会使旧清单失效；仅文件名变化时两个身份保持不变，但展示文件名会更新。
 
-## 12. B.2 Research Bundle
+## 12. Research Bundle
 
 四条单实验路径分析成功后均提供“下载研究包 ZIP”。文件名固定为 `qrw_bundle_<run_id 前 16 位>.zip`，成员及顺序固定为 `analysis_report.md`、`standardized_data.csv`、`run_manifest.json` 和 `bundle_index.json`。内部路径完全由应用定义，不使用上传文件名、实验名称或其他用户输入。
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.0.0] — 2026-08-28
+
+Quant Research Workbench v1.0.0 完成第一阶段稳定产品与公开作品集发布准备。
+
+### Highlights
+
+- 完成可复用 CSV/XLSX 导入、用户确认式字段映射、Return/NAV 分析与多实验共同区间比较。
+- 提供 `analysis_id`、`run_id`、Run Manifest 和固定四成员 Research Bundle，可记录 provenance 并核验 artifact exact bytes。
+- 加入 XLSX 与 Comparison 资源限制、安全 CSV 导出、least-privilege CI、`pip-audit` 和 Dependabot。
+- 在不改变既有安全检查的前提下，复用当前 session 内成功解析的 XLSX 结果，避免无关 rerun 重复完整解析。
+- 完成 portfolio-first README、v1 文档、公开 Demo、MIT License 与 Standard NAV reference workflow。
+
+### Boundaries
+
+- v1.0.0 是量化研究结果分析和可复现归档工作台，不是回测、交易或组合优化系统。
+- 后续只接受 bug fix、dependency/security maintenance 和真实用户反馈驱动的改动。
+
 ## v0.4.0 — 2026-08-26
 
 Quant Research Workbench v0.4.0 为四条单实验路径增加 Research Bundle ZIP 下载。

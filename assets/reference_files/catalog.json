@@ -46,6 +46,26 @@
       "safety_note": "确定性合成数据，不代表真实投资结果。"
     },
     {
+      "id": "standard_weekly_nav",
+      "filename": "12_standard_weekly_nav.csv",
+      "relative_path": "valid/12_standard_weekly_nav.csv",
+      "title": "标准每周净值",
+      "group": "valid",
+      "file_type": "CSV",
+      "description": "用于验证每周调仓净值标准协议、净值推导收益、报告和下载。",
+      "recommended_entry": "按现有标准协议上传",
+      "recommended_primary_basis": "策略净值为主",
+      "recommended_mapping": {
+        "date": "date",
+        "strategy_nav": "nav_strat"
+      },
+      "contains_benchmark": false,
+      "expected_result": "pass",
+      "expected_stage": "完整分析",
+      "expected_message": "应通过每周调仓净值协议，并显示净值推导的绩效、报告及下载。",
+      "safety_note": "确定性合成数据，不代表真实投资结果。"
+    },
+    {
       "id": "generic_cn_returns",
       "filename": "03_generic_cn_returns.csv",
       "relative_path": "valid/03_generic_cn_returns.csv",
@@ -87,27 +107,6 @@
       "safety_note": "确定性合成数据，不代表真实投资结果。"
     },
     {
-      "id": "generic_en_returns",
-      "filename": "05_generic_en_returns.csv",
-      "relative_path": "valid/05_generic_en_returns.csv",
-      "title": "英文通用收益率示例",
-      "group": "valid",
-      "file_type": "CSV",
-      "description": "用于演示英文别名字段识别、确认映射和收益率分析。",
-      "recommended_entry": "通用文件导入（CSV/XLSX）",
-      "recommended_primary_basis": "策略收益率为主",
-      "recommended_mapping": {
-        "date": "trade_date",
-        "strategy_return": "portfolio_return",
-        "benchmark_return": "benchmark_ret"
-      },
-      "contains_benchmark": true,
-      "expected_result": "pass",
-      "expected_stage": "完整分析",
-      "expected_message": "应识别英文候选并在用户确认后完成现有收益率分析。",
-      "safety_note": "确定性合成数据，不代表真实投资结果。"
-    },
-    {
       "id": "multi_sheet_online_regression",
       "filename": "11_multi_sheet_online_regression.xlsx",
       "relative_path": "valid/11_multi_sheet_online_regression.xlsx",
@@ -145,7 +144,7 @@
       },
       "contains_benchmark": true,
       "expected_result": "block",
-      "expected_stage": "B.3 字段映射确认",
+      "expected_stage": "字段映射确认",
       "expected_message": "应提示收益字段没有可转换数值并阻断确认。",
       "safety_note": "确定性合成数据，故意包含错误，仅用于验证阻断行为。",
       "prohibited_automatic_action": "不得自动删除百分号或除以 100。"
@@ -166,7 +165,7 @@
       },
       "contains_benchmark": false,
       "expected_result": "block",
-      "expected_stage": "B.4A 标准化预检",
+      "expected_stage": "标准化预检",
       "expected_message": "应提示重复日期并阻断。",
       "safety_note": "确定性合成数据，故意包含错误，仅用于验证阻断行为。",
       "prohibited_automatic_action": "不得自动去重或删除重复行。"
@@ -187,7 +186,7 @@
       },
       "contains_benchmark": false,
       "expected_result": "block",
-      "expected_stage": "B.4A 标准化预检",
+      "expected_stage": "标准化预检",
       "expected_message": "应提示日期无法可靠解析并阻断。",
       "safety_note": "确定性合成数据，故意包含错误，仅用于验证阻断行为。",
       "prohibited_automatic_action": "不得根据地区环境猜测日月顺序。"
@@ -208,7 +207,7 @@
       },
       "contains_benchmark": false,
       "expected_result": "block",
-      "expected_stage": "B.4A 标准化预检",
+      "expected_stage": "标准化预检",
       "expected_message": "应提示日期未严格递增并阻断。",
       "safety_note": "确定性合成数据，故意包含错误，仅用于验证阻断行为。",
       "prohibited_automatic_action": "不得自动排序或改写行顺序。"
@@ -229,7 +228,7 @@
       },
       "contains_benchmark": false,
       "expected_result": "block",
-      "expected_stage": "B.4A 标准化预检",
+      "expected_stage": "标准化预检",
       "expected_message": "应提示净值必须大于零并阻断。",
       "safety_note": "确定性合成数据，故意包含错误，仅用于验证阻断行为。",
       "prohibited_automatic_action": "不得归一化、删除或修复非正净值。"

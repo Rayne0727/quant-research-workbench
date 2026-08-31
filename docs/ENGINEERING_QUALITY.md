@@ -2,15 +2,15 @@
 
 本项目的工程质量门禁用于在不改变业务公式、数据协议和公开行为的前提下，尽早发现代码风格、测试、覆盖率、依赖和发布准备问题。质量失败必须修复根因，不得通过降低门禁或排除核心代码解决。
 
-## A.1a：Ruff style baseline
+## Ruff style 与格式化
 
-A.1a 固定使用 `ruff==0.16.2`，目标 Python 为 3.14，行宽为 100。启用的规则族为 `E`、`F`、`I`、`B`、`UP` 和 `RUF`，并使用 Ruff formatter 统一 Python 格式。
+项目固定使用 `ruff==0.16.2`，目标 Python 为 3.14，行宽为 100。启用的规则族为 `E`、`F`、`I`、`B`、`UP` 和 `RUF`，并使用 Ruff formatter 统一 Python 格式。
 
 项目保留中文 UI 文本和文档字符串中经过审计的全角标点。`allowed-confusables` 只允许 `（`、`）`、`，`、`：`、`；`、`？`；`RUF001`、`RUF002` 和 `RUF003` 对其他混淆字符仍然生效。
 
-## A.1b：pytest 与 branch coverage
+## pytest 与 branch coverage
 
-测试使用 `pytest==9.1.1` 和 `pytest-cov==7.1.0`。A.1a 测得的 branch coverage 基线为 `89.4532%`。根据既定决策规则，CI 的正式 `fail_under` 为 `85`，而工程改进目标约为 `90%`。
+测试使用 `pytest==9.1.1` 和 `pytest-cov==7.1.0`。v1.0.0 release-candidate 基线为 669 tests、`91.19%` branch coverage。CI 的正式 `fail_under` 为 `85`，而工程目标保持在约 `90%` 或更高。
 
 门禁设为 85 是为了在当前可靠基线上提供稳定、明确的最低约束；实际目标约 90 是为了通过真实高风险边界测试持续改善，而不是把短期测量波动变成不必要的 CI 噪声。两者用途不同，不能通过降低 85 的门禁处理失败。
 
@@ -21,12 +21,12 @@ A.1a 固定使用 `ruff==0.16.2`，目标 Python 为 3.14，行宽为 100。启�
 - monkeypatch 掉核心逻辑后只断言调用发生；
 - 删除异常分支、修改业务公式或迁就实现修改期望值。
 
-A.1b 新增 coverage exclusion 为 0。
+项目未为提高结果新增 coverage exclusion。
 
-## A.2a / A.2b：渐进式 static typing
+## 渐进式 strict static typing
 
 静态类型门禁采用渐进式策略，固定使用 Python 3.14、`mypy==2.3.0` 和
-`pandas-stubs==3.0.5.260730`。A.2a 把以下六个 Tier 1 核心模块纳入 strict gate：
+`pandas-stubs==3.0.5.260730`。以下六个 Tier 1 核心模块纳入 strict gate：
 
 - `src/performance.py`
 - `src/adapters.py`
@@ -35,7 +35,7 @@ A.1b 新增 coverage exclusion 为 0。
 - `src/standardization.py`
 - `src/analysis_bridge.py`
 
-A.2b 在同一个 strict gate 中新增以下七个 Tier 2 基础设施与分析模块：
+同一个 strict gate 还包含以下七个 Tier 2 基础设施与分析模块：
 
 - `src/limits.py`
 - `src/data_loader.py`
@@ -45,12 +45,11 @@ A.2b 在同一个 strict gate 中新增以下七个 Tier 2 基础设施与分析
 - `src/reporting.py`
 - `src/templates.py`
 
-B.1a 将 `src/run_manifest.py` 从新增首日纳入同一个 strict gate；B.1b 继续纳入
-`src/run_manifest_integration.py`；B.2 将纯标准库 artifact packaging 模块
-`src/research_bundle.py` 纳入门禁。当前正式 typed boundary 共 16 个模块，全部使用
+可复现研究边界还包括 `src/run_manifest.py`、`src/run_manifest_integration.py` 与纯标准库 artifact packaging 模块
+`src/research_bundle.py`。当前正式 typed boundary 共 16 个模块，全部使用
 `mypy --strict`。`src/ui_single.py`、
 `src/ui_comparison.py`、`src/ui_common.py`、`src/ui_reference_files.py` 和 `src/sample_data.py`
-仍明确排除；当前状态不代表全项目已经 strict typed，Streamlit/UI 和 Plotly typing 仍属于后续阶段。
+仍明确排除；当前状态不代表全项目已经 strict typed，Streamlit/UI 和 Plotly typing 不在当前发布边界内。
 禁止使用 `type: ignore`、`cast` 或新增 `Any` 隐藏类型债务，也不得全局忽略第三方导入。
 
 `pandas-stubs` 的类型接口有时可能比 pandas runtime API 更窄。遇到冲突时必须先通过测试验证
@@ -126,6 +125,6 @@ CI 失败时应在本地复现对应命令并修复根因。不得降低 coverag
 
 ## 范围与不变量
 
-A.2b 不包含 UI/Plotly typing、CodeQL、性能 benchmark 或新业务功能。C.2 仅增加最小权限 CI、Dependabot 和 runtime dependency audit，不扩展 strict typing 边界或产品功能。
+当前 typed boundary 不包含 UI/Plotly typing、CodeQL 或性能 benchmark。安全供应链门禁包括最小权限 CI、Dependabot 和 runtime dependency audit，但不扩展产品功能。
 
-未经明确产品发布授权的工程质量改动不得改变 `APP_VERSION`、既有 Tag/Release、参考文件字节与 SHA-256、业务计算公式、benchmark/NAV 边界、字段映射确认语义，或 standardization/analysis key 的失效语义。B.2 按批准范围将当前应用版本升级为 v0.4.0，但不修改既有 v0.3.0 或 v0.2.0 Tag/Release。
+工程质量改动不得擅自改变既有 Tag/Release、参考文件字节与 SHA-256、业务计算公式、benchmark/NAV 边界、字段映射确认语义，或 standardization/analysis key 的失效语义。v1.0.0 版本发布不修改历史 v0.4.0、v0.3.0 或 v0.2.0 Tag/Release。XLSX 成功解析结果只在当前 Streamlit session 内复用；首次解析仍执行完整资源安全检查，失败或部分结果不会缓存。
