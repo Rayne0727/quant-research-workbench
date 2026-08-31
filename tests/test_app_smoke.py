@@ -1092,6 +1092,7 @@ def test_reference_page_exposes_all_static_downloads_with_safe_labels() -> None:
     assert len(download_labels) == 11
     assert sum(label.startswith("下载错误示例：") for label in download_labels) == 5
     assert "下载标准收益率（含基准）" in download_labels
+    assert "下载标准每周净值" in download_labels
     assert "下载中文通用收益率示例" in download_labels
     assert "下载中文通用净值示例" in download_labels
     assert "下载多工作表线上回归 XLSX" in download_labels
@@ -1214,8 +1215,8 @@ def test_all_pages_display_version_from_shared_config(page_name: str) -> None:
 
     page_text = _visible_text(app)
 
-    assert APP_VERSION == "0.4.0"
-    assert "v0.4.0" in page_text
+    assert APP_VERSION == "1.0.0"
+    assert "v1.0.0" in page_text
     assert "v0.1.0-rc1" not in page_text
     assert "V0.1.0-RC1" not in page_text
     assert f"V{APP_VERSION.upper()}" not in page_text
@@ -1260,7 +1261,7 @@ def test_ui_modules_do_not_hardcode_release_version() -> None:
         source = path.read_text(encoding="utf-8")
         assert "0.1.0-rc1" not in source
         assert "0.3.0" not in source
-        assert "0.4.0" not in source
+        assert "1.0.0" not in source
     assert all("APP_VERSION.upper()" not in path.read_text(encoding="utf-8") for path in ui_paths)
 
 

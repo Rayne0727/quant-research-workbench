@@ -1,6 +1,8 @@
 # GitHub 与 Streamlit 云部署准备
 
-本文档说明 `v0.4.0` 的本地启动、GitHub 集成、Streamlit Community Cloud 更新流程和部署验收边界。GitHub 远程仓库已经存在，`master` 是当前部署基线；Streamlit Community Cloud 已部署该应用，合并到 `master` 后由现有云端部署流程检测并更新。
+本文档说明 `v1.0.0` 的本地启动、GitHub 集成、Streamlit Community Cloud 更新流程和部署验收边界。GitHub 远程仓库已经存在，`master` 是当前部署基线；Streamlit Community Cloud 已部署该应用，合并到 `master` 后由现有云端部署流程检测并更新。
+
+公开入口：<https://rayne-quant-research-workbench.streamlit.app>。该链接不构成 uptime、资源配额或永久可用性保证。
 
 ## 1. GitHub 与部署基线
 
@@ -17,6 +19,7 @@ Streamlit Community Cloud 从 GitHub 仓库读取应用代码、入口文件和�
 - CI Python：`3.14`；
 - 运行依赖：根目录 `requirements.txt`；
 - Secrets：当前业务不需要。
+- Live Demo：`https://rayne-quant-research-workbench.streamlit.app`。
 
 云端环境应优先选择与本地一致的 Python `3.14`。如果目标平台尚不支持该版本，应先在受支持版本上完整运行 pytest 和页面回归，再决定是否部署，不能静默改变版本假设。
 
@@ -45,7 +48,7 @@ Streamlit Community Cloud 从 GitHub 仓库读取应用代码、入口文件和�
 
 ## 5. 云端验收清单
 
-- 页面显示 `Quant Research Workbench v0.4.0`；
+- 页面显示 `Quant Research Workbench v1.0.0`；
 - 首页、单实验分析、多实验比较、参考文件和使用说明版本一致；
 - 单实验示例无需 `data/raw` 即可运行；
 - 多实验固定示例正常；

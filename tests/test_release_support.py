@@ -75,8 +75,8 @@ class SeekTellOnlyUpload:
 
 
 def test_public_release_config_values_are_valid() -> None:
-    assert APP_VERSION == "0.4.0"
-    assert f"v{APP_VERSION}" == "v0.4.0"
+    assert APP_VERSION == "1.0.0"
+    assert f"v{APP_VERSION}" == "v1.0.0"
     assert SINGLE_FILE_MAX_MB > 0
     assert COMPARISON_FILE_MAX_MB > 0
     assert isinstance(MAX_ROWS_PER_FILE, int) and MAX_ROWS_PER_FILE > 0
@@ -124,27 +124,36 @@ def test_dependabot_only_checks_approved_ecosystems_weekly() -> None:
     assert "secrets" not in dependabot_text.lower()
 
 
-def test_v040_release_documents_are_present_and_current() -> None:
+def test_v100_release_documents_are_present_and_current() -> None:
     changelog = Path("CHANGELOG.md")
-    release_notes = Path("docs/RELEASE_NOTES_v0.4.0.md")
+    release_notes = Path("docs/RELEASE_NOTES_v1.0.0.md")
+    v040_release_notes = Path("docs/RELEASE_NOTES_v0.4.0.md")
     v030_release_notes = Path("docs/RELEASE_NOTES_v0.3.0.md")
     v020_release_notes = Path("docs/RELEASE_NOTES_v0.2.0.md")
     readme_text = Path("README.md").read_text(encoding="utf-8")
     checklist_text = Path("docs/RELEASE_CHECKLIST.md").read_text(encoding="utf-8")
     protocol_text = Path("docs/DATA_PROTOCOLS.md").read_text(encoding="utf-8")
     deployment_text = Path("docs/DEPLOYMENT.md").read_text(encoding="utf-8")
+    security_text = Path("docs/SECURITY_AND_PRIVACY.md").read_text(encoding="utf-8")
+    license_text = Path("LICENSE").read_text(encoding="utf-8")
 
     assert changelog.is_file()
     assert release_notes.is_file()
-    assert "## v0.4.0" in changelog.read_text(encoding="utf-8")
-    assert "# Quant Research Workbench v0.4.0" in release_notes.read_text(encoding="utf-8")
+    assert "## [1.0.0]" in changelog.read_text(encoding="utf-8")
+    assert "# Quant Research Workbench v1.0.0" in release_notes.read_text(encoding="utf-8")
+    assert v040_release_notes.is_file()
     assert v030_release_notes.is_file()
     assert v020_release_notes.is_file()
-    assert "当前版本：**v0.4.0 公开功能版本**" in readme_text
-    assert checklist_text.startswith("# Quant Research Workbench v0.4.0 发布检查清单")
-    assert "本文档对应 `v0.4.0`" in protocol_text
+    assert "https://rayne-quant-research-workbench.streamlit.app" in readme_text
+    assert "Latest Release: v1.0.0" in readme_text
+    assert "[MIT License](LICENSE)" in readme_text
+    assert checklist_text.startswith("# Quant Research Workbench v1.0.0 发布检查清单")
+    assert "本文档对应 `v1.0.0`" in protocol_text
     assert "当前尚未创建远程仓库" not in deployment_text
     assert "GitHub 远程仓库已经存在" in deployment_text
+    assert "https://rayne-quant-research-workbench.streamlit.app" in deployment_text
+    assert "尚未建立公开仓库" not in security_text
+    assert license_text.startswith("MIT License\n\nCopyright (c) 2026 Rayne0727")
 
 
 def test_local_and_ci_strict_typing_targets_include_same_sixteen_modules() -> None:

@@ -1,94 +1,27 @@
-# Quant Research Workbench v0.4.0 发布检查清单
+# Quant Research Workbench v1.0.0 发布检查清单
 
-本清单用于准备 v0.4.0 公开功能版本。发布检查应在项目根目录执行：
+本清单用于完成第一阶段稳定 release。Tag 和 GitHub Release 只能在合并后的 `master` 通过 CI 与公开部署验收后创建。
+
+1. [ ] 本地 `master`、`origin/master` 和 GitHub `master` 一致，worktree clean。
+2. [ ] `APP_VERSION == 1.0.0`，五页 UI、README、CHANGELOG、协议、部署文档和 release notes 版本一致。
+3. [ ] README 的 Live Demo、v1.0.0 Release、文档和 MIT License 链接正确；GitHub Homepage 与 Topics 已设置。
+4. [ ] `ruff check` 通过。
+5. [ ] `ruff format --check` 通过。
+6. [ ] 16-module `mypy --strict` 通过，未用新 ignore、cast 或 Any 隐藏问题。
+7. [ ] full pytest 与 branch coverage gate 通过，README 中的测试数字与最终结果一致。
+8. [ ] `pip check` 与 `compileall app.py src tests` 通过。
+9. [ ] `scripts/check_quality.bat` 与 clean-worktree `scripts/check_release.bat` 通过。
+10. [ ] GitHub Actions CI 与 runtime `pip-audit` 通过，workflow 保持 `contents: read` 和 `persist-credentials: false`。
+11. [ ] 公开 Streamlit 页面显示 v1.0.0，无 visible traceback；隐私提示与非投资建议声明完整。
+12. [ ] Standard Return、Standard NAV、Generic Return、Generic NAV、XLSX reference workflows 通过，已有 reference bytes 未改变。
+13. [ ] Comparison 示例与上传流程正常，指标、对齐数据和 Markdown 报告可下载。
+14. [ ] 四条单实验路径均可下载 Manifest 与固定四成员 Research Bundle；identity、provenance、index SHA 和无 raw-source 边界正确。
+15. [ ] 合并后完成 production smoke，再创建 `v1.0.0` Tag 和 GitHub Release；此后只接受 bug、安全维护和真实反馈驱动的改动。
+
+本地发布检查：
 
 ```powershell
-cmd.exe /d /c "call .venv\Scripts\activate.bat && call scripts\check_release.bat"
+.\scripts\check_release.bat
 ```
 
-脚本会显示版本、运行全部测试、编译 Python 文件并检查 Git 工作区。工作区不干净时会返回失败；脚本不会启动 Streamlit、提交 Git、删除缓存或结束进程。
-
-## Git 和版本
-
-- [ ] 当前分支符合正在执行的发布步骤。
-- [ ] 准备合并前，分支基于最新 `origin/master` 且没有意外分叉。
-- [ ] 合并完成后，本地 `master`、`origin/master` 与 GitHub 远程 `master` 一致。
-- [ ] Git 工作区干净。
-- [ ] `APP_VERSION` 等于 `0.4.0`，并且仍是唯一应用版本来源。
-- [ ] 首页、侧边栏、单实验、多实验、参考文件、使用说明和页脚统一显示 `v0.4.0`。
-- [ ] 当前公开 UI 不显示旧 RC 版本。
-- [ ] `CHANGELOG.md` 包含 `v0.4.0`，并保留 v0.3.0 与 v0.2.0 历史记录。
-- [ ] `docs/RELEASE_NOTES_v0.4.0.md` 与历史 v0.3.0、v0.2.0 发行说明均存在。
-
-## 自动化测试
-
-- [ ] `.\.venv\Scripts\python.exe -m compileall app.py src tests` 通过。
-- [ ] `.\.venv\Scripts\python.exe -m pytest` 全部通过。
-- [ ] `.\.venv\Scripts\python.exe -m pip check` 通过。
-- [ ] `scripts/check_release.bat` 通过。
-- [ ] GitHub Actions CI 全部通过。
-- [ ] CI 不引用 Secrets，不执行发布或部署。
-
-## 五页公开页面
-
-- [ ] 首页正常，版本、隐私边界和非投资建议声明完整。
-- [ ] 单实验分析正常，无未捕获异常。
-- [ ] 多实验比较正常，净值和回撤图可用。
-- [ ] 参考文件页正常，静态下载可用。
-- [ ] 使用说明正常，版本格式与其他页面一致。
-- [ ] 五页均显示 `v0.4.0`，不显示旧版本或 RC 版本。
-- [ ] 浏览器控制台没有页面错误。
-
-## 核心功能回归
-
-- [ ] 单实验固定示例正常显示指标和两张图。
-- [ ] 标准收益 CSV 可以直接分析并包含基准结果。
-- [ ] 不含基准的标准收益 CSV 可以按无基准流程分析。
-- [ ] 净值文件可以通过现有净值适配器分析。
-- [ ] 通用收益率 CSV 可以完成字段确认、标准化预检、严格验证和最终分析。
-- [ ] 通用净值 CSV 可以完成同一受控流程。
-- [ ] 通用 XLSX 可以选择工作表并完成对应流程。
-- [ ] 报告下载和标准化数据下载保持现有字段与格式。
-- [ ] 四条单实验路径分析成功后均显示“下载运行清单 JSON”。
-- [ ] 四条单实验路径分析成功后均显示“下载研究包 ZIP”，阻断或未完成分析时不显示。
-- [ ] Manifest JSON 使用 `qrw-run-manifest-v2`，包含完整 analysis/run identity 与来源、数据和环境 provenance。
-- [ ] Manifest 不包含绝对路径、原始数据行、session、browser 或 widget metadata。
-- [ ] Research Bundle 恰好包含四个固定顺序成员，前三个成员与 standalone bytes 完全一致。
-- [ ] `bundle_index.json` 使用 `qrw-research-bundle-index-v1`，其大小和 SHA-256 对应实际 member bytes。
-- [ ] Research Bundle 默认不包含原始上传文件、原始来源字节或用户控制的 member path。
-- [ ] 多实验固定示例和标准化 CSV 比较正常。
-- [ ] 参考文件下载字节与 manifest 一致。
-- [ ] 错误示例按预期阶段阻断且不会自动修复。
-- [ ] 通用导入与内容相同的直接上传结果保持等价。
-
-## 数据与安全边界
-
-- [ ] 不自动转换收益率单位，不把 `1` 解释为 `1%`。
-- [ ] 不自动排序、去重、填充、删除或修复用户数据。
-- [ ] 不从 `benchmark_nav` 自动生成 `benchmark_return`。
-- [ ] 应用不会主动把上传文件写入项目目录。
-- [ ] 当前会话之外不保存用户文件或确认映射。
-- [ ] 提交不包含真实测试数据、凭证、缓存、日志或临时下载。
-- [ ] 参考文件全部是确定性合成数据。
-- [ ] 参考文件 catalog、manifest、文件大小和 SHA-256 校验通过。
-- [ ] 页面保留完整云端隐私提示和非投资建议声明。
-
-## 文档复核
-
-- [ ] README 显示 `v0.4.0`、Research Bundle 和 Reproducible Run Manifest 功能定位。
-- [ ] 用户指南包含 Research Bundle、Manifest、通用导入、参考文件和单位核对责任。
-- [ ] 数据协议保留现有字段、阻断条件和处理边界。
-- [ ] 部署文档反映 GitHub 仓库、`master` 基线和现有云端部署状态。
-- [ ] 发行说明不声称支持任意格式、自动修复数据或提供投资建议。
-
-## 发布控制
-
-以下项目在本次发布准备合并结束时必须保持未完成：
-
-- [ ] **Git 标签尚未创建。**
-- [ ] **GitHub Release 尚未创建。**
-- [ ] **正式发布资产尚未上传。**
-
-这些操作只能在合并后的 `master` 完成线上生产验收后执行。
-
-线上 spot 至少确认：App 正常加载、五页显示 v0.4.0、成功分析后四个导出按钮可用、Research Bundle 恰好四个成员、Manifest/index 可解析、隐私边界符合说明且页面无 traceback。
+脚本不会启动 Streamlit、提交 Git、创建 Tag 或发布 Release。
